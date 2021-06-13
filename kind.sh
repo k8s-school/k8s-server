@@ -6,7 +6,7 @@ DIR=$(cd "$(dirname "$0")"; pwd -P)
 
 . $DIR/env.sh
 
-NB_USER=7
+NB_USER=12
 
 for ((i=0; i<=$NB_USER; i++))
 do
