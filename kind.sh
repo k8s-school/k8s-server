@@ -10,6 +10,6 @@ NB_USER=7
 
 for ((i=0; i<=$NB_USER; i++))
 do
-    "$HOME/kind-travis-ci/k8s-create.sh" -n "k8s$i"
+    "$HOME/kind-helper/k8s-create.sh" -n "k8s$i"
 done
 
