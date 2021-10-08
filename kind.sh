@@ -6,10 +6,10 @@ DIR=$(cd "$(dirname "$0")"; pwd -P)
 
 . $DIR/env.sh
 
-NB_USER=12
+NB_USER=9
 
 for ((i=0; i<=$NB_USER; i++))
 do
-    "$HOME/kind-helper/k8s-create.sh" -n "k8s$i"
+    "$HOME/kind-helper/k8s-create.sh -c calico" -n "k8s$i"
 done
 
