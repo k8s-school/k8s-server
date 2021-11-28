@@ -6,10 +6,9 @@ DIR=$(cd "$(dirname "$0")"; pwd -P)
 
 . $DIR/env.sh
 
-NB_USER=13
-
 for ((i=1; i<=$NB_USER; i++))
 do
-    rm -rf /home/k8s$i/k8s/homefs/*
+    USER="k8s$i"
+    sudo su "$USER" -c "~/k8s/toolbox.sh -C '/opt/google-cloud-sdk/bin/gcloud compute instances list'"
 done
 
