@@ -6,25 +6,26 @@ DIR=$(cd "$(dirname "$0")"; pwd -P)
 
 . $DIR/env.sh
 
+
 for ((i=1; i<=$NB_USER; i++))
 do
-    echo "WARN: do not delete "homefs/.config" directory, rewrite the script"
-    exit 1
     USER="k8s$i"
-    sudo rm -rf /tmp/config
-    if [ -d "/home/$USER/.config" ]; then
-      sudo cp -rf /home/$USER/.config /tmp
+    GCLOUD_CONFIG="/home/$USER/k8s/homefs/.config"
+
+    if [ -d "$GCLOUD_CONFIG" ]; then
+      sudo cp -prf "$GCLOUD_CONFIG" /tmp
     fi
     sudo rm -rf /home/$USER/*
     sudo rm -rf /home/$USER/.kube/*
-    WORKDIR="/home/$USER/k8s"
-    sudo mkdir "$WORKDIR"
+    WORKDIR="/home/$USER/k8s/homefs"
+    sudo mkdir -p "$WORKDIR"
     sudo chown $USER:$USER "$WORKDIR" 
-    cd "$WORKDIR"
+    cd "$WORKDIR/.."
     sudo curl -lO https://raw.githubusercontent.com/k8s-school/k8s-toolbox/master/toolbox.sh
     sudo chmod +x toolbox.sh
     sudo chown $USER:$USER toolbox.sh
     if [ -d "/tmp/.config" ]; then
-      sudo cp -rf /tmp/.config /home/$USER
+      sudo cp -prf /tmp/.config $GCLOUD_CONFIG
+      sudo rm -rf /tmp/.config
     fi
 done
