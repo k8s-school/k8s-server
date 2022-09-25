@@ -11,6 +11,6 @@ DIR=$(cd "$(dirname "$0")"; pwd -P)
 
 for ((i=0; i<=$NB_USER; i++))
 do
-    "$HOME/kind-helper/k8s-create.sh" -p -c "calico" -n "k8s$i"
+    "$HOME/kind-helper/k8s-create.sh" -c "calico" -n "k8s$i"
 done
 
