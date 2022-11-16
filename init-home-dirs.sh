@@ -20,7 +20,7 @@ do
     fi
     sudo rm -rf /home/$USER/*
     sudo rm -rf /home/$USER/.kube/*
-    WORKDIR="/home/$USER/k8s/homefs"
+    WORKDIR="/home/$USER/k8s"
     sudo mkdir -p "$WORKDIR"
     sudo cp /tmp/toolbox.sh "$WORKDIR"
     sudo chown -R $USER:$USER "/home/$USER"
