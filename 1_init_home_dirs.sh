@@ -25,7 +25,6 @@ do
     sudo cp /tmp/toolbox.sh "$WORKDIR"
     sudo chown -R $USER:$USER "/home/$USER"
     sudo chmod +x "$WORKDIR"/toolbox.sh
-    sudo chown $USER:$USER "$WORKDIR"/toolbox.sh
     if [ -d "/tmp/.config" ]; then
       sudo cp -prf /tmp/.config $GCLOUD_CONFIG
       sudo rm -rf /tmp/.config
