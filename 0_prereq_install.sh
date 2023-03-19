@@ -21,4 +21,4 @@ sudo apt install git
 cd $HOME
 git clone https://github.com/k8s-school/kind-helper.git
 git clone https://github.com/k8s-school/k8s-toolbox.git
-
+mkdir -p $HOME/.kube
