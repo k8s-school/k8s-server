@@ -13,7 +13,7 @@ echo \
   $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 sudo apt-get update
 sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-usermod -a -G docker k8s0
+sudo usermod -a -G docker k8s0
 
 echo "Clone sources"
 sudo apt install git
