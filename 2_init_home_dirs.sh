@@ -22,6 +22,7 @@ do
     sudo rm -rf /home/$USER/.kube/*
     WORKDIR="/home/$USER/k8s"
     sudo mkdir -p "$WORKDIR"
+    sudo mkdir -p "/home/$USER/.kube"
     sudo cp /tmp/toolbox.sh "$WORKDIR"
     sudo chown -R $USER:$USER "/home/$USER"
     sudo chmod +x "$WORKDIR"/toolbox.sh
