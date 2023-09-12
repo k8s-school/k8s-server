@@ -1,11 +1,8 @@
 #!/bin/bash
 
-# Launch remotely using the following command:
-# curl -s https://raw.githubusercontent.com/k8s-school/openshift-advanced/main/init.sh | bash
-
 set -euxo pipefail
 
-dnf install -y bash-completion bind-utils git
+apt-get install -y bash-completion git
 
 user="k8s"
 pass="dede"
