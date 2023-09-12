@@ -2,16 +2,11 @@
 
 set -euxo pipefail
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-
-. "$DIR"/conf.sh
-
-sudo dnf install -y golang
+sudo apt-get install -y golang
 
 mkdir -p $HOME/src
 
 echo "PATH=\$PATH:\$HOME/go/bin" >>~/.bashrc
-echo "PATH=\$PATH:\$HOME/crc-linux-$VERSION-amd64" >>~/.bashrc
 
 # Install kubectl and setup auto-completion
 if [ ! -e "$HOME/src/k8s-toolbox" ]; then
