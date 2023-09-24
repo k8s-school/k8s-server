@@ -5,8 +5,8 @@ set -euxo pipefail
 apt-get update -y
 apt-get install -y bash-completion git docker.io
 
-user="k8s"
-pass="dede"
+user="k8s0"
+pass=""
 
 adduser "$user"
 sudo usermod -a -G docker "$user"

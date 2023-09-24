@@ -10,8 +10,8 @@ NB_USER=8
 
 for ((i=0; i<=$NB_USER; i++))
 do
-    echo "------------ User $i" 
+    echo "------------ User $i"
     kubectl config use-context "kind-k8s$i"
-    kubectl get svc 
+    kubectl get pod
 done
 kubectl config use-context "kind-k8s0"

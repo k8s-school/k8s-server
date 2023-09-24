@@ -9,11 +9,10 @@ set -euxo pipefail
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-OPENSHIFT_USER="k8s"
 INSTANCE_NAME="k8s"
-INSTANCE_TYPE="GP1-M"
+INSTANCE_TYPE="GP1-S"
 DISTRIBUTION="ubuntu_jammy"
-DISK_SIZE="100GB"
+DISK_SIZE="30GB"
 
 if scw instance server list | grep $INSTANCE_NAME; then
   echo "ERROR: Instance $INSTANCE_NAME already exists" >&2
@@ -31,9 +30,8 @@ until ssh -o "StrictHostKeyChecking no" root@"$ip_address" true 2> /dev/null
     sleep 5
 done
 
-ssh root@"$ip_address" -- "curl  -s https://raw.githubusercontent.com/k8s-school/ikoula-setup/main/bootstrap/init.sh | bash"
-ssh root@"$ip_address" -- "su - $OPENSHIFT_USER -c '$bootstrap_dir/prereq-user.sh'"
+ssh root@"$ip_address" -- "curl  -s https://raw.githubusercontent.com/k8s-school/k8s-server/main/bootstrap/init.sh | bash"
 
 echo "Connect to the server with below command:"
-echo "ssh root@$ip_address"
+echo "ssh k8s0@$ip_address"
 
