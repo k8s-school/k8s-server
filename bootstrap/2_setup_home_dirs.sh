@@ -17,13 +17,11 @@ do
     fi
     sudo rm -rf /home/$USER/*
     sudo rm -rf /home/$USER/.kube/*
-    WORKDIR="/home/$USER/k8s"
-    sudo mkdir -p "$WORKDIR"
     sudo mkdir -p "/home/$USER/.kube"
     sudo chown -R $USER:$USER "/home/$USER"
     if [ -d "/tmp/.config" ]; then
       sudo cp -prf /tmp/.config $GCLOUD_CONFIG
       sudo rm -rf /tmp/.config
     fi
-    sudo su $USER sh -c "git clone https://github.com/k8s-school/k8s-school /home/k8s1/k8s-school"
+    sudo su $USER sh -c "git clone https://github.com/k8s-school/k8s-school /home/$USER/k8s-school"
 done
