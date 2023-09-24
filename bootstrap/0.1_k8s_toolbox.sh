@@ -28,5 +28,6 @@ curl -Lo $HOME/.kubectl_aliases https://raw.githubusercontent.com/ahmetb/kubectl
 echo '[ -f ~/.kubectl_aliases ] && source ~/.kubectl_aliases' >>~/.bashrc
 
 echo "Start k8s"
-cp $DIR/dot-k8s-toolbox $HOME/.k8s-toolbox
+mkdir $HOME/.k8s-toolbox
+cp $DIR/dot-k8s-toolbox $HOME/.k8s-toolbox/config
 k8s-toolbox create

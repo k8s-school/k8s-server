@@ -10,13 +10,12 @@ DIR=$(cd "$(dirname "$0")"; pwd -P)
 for ((i=1; i<=$NB_USER; i++))
 do
     USER="k8s$i"
-    GCLOUD_CONFIG="/home/$USER/k8s/homefs/.config"
+    GCLOUD_CONFIG="/home/$USER/.k8s-toolbox/homefs/.config"
 
     if [ -d "$GCLOUD_CONFIG" ]; then
       sudo cp -prf "$GCLOUD_CONFIG" /tmp
     fi
-    sudo rm -rf /home/$USER/*
-    sudo rm -rf /home/$USER/.kube/*
+    sudo rm -rf /home/$USER
     sudo mkdir -p "/home/$USER/.kube"
     sudo chown -R $USER:$USER "/home/$USER"
     if [ -d "/tmp/.config" ]; then
