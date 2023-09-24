@@ -19,6 +19,7 @@ else
     cd $HOME/src/k8s-toolbox && git pull
 fi
 cd $HOME/src/k8s-toolbox && sudo sh -c "GOBIN=/usr/local/bin $(which go) install"
+sudo k8s-toolbox install kind
 sudo k8s-toolbox install kubectl
 echo 'source <(kubectl completion bash)' >>~/.bashrc
 

@@ -6,9 +6,6 @@ DIR=$(cd "$(dirname "$0")"; pwd -P)
 
 . $DIR/env.sh
 
-cd /tmp
-sudo curl -lO https://raw.githubusercontent.com/k8s-school/k8s-toolbox/master/toolbox.sh
-cd -
 
 for ((i=1; i<=$NB_USER; i++))
 do
@@ -23,11 +20,10 @@ do
     WORKDIR="/home/$USER/k8s"
     sudo mkdir -p "$WORKDIR"
     sudo mkdir -p "/home/$USER/.kube"
-    sudo cp /tmp/toolbox.sh "$WORKDIR"
     sudo chown -R $USER:$USER "/home/$USER"
-    sudo chmod +x "$WORKDIR"/toolbox.sh
     if [ -d "/tmp/.config" ]; then
       sudo cp -prf /tmp/.config $GCLOUD_CONFIG
       sudo rm -rf /tmp/.config
     fi
+    git clone https://github.com/k8s-school/k8s-school /home/$USER/k8s-school
 done
