@@ -9,5 +9,5 @@ DIR=$(cd "$(dirname "$0")"; pwd -P)
 for ((i=1; i<=$NB_USER; i++))
 do
     USER="k8s$i"
-    sudo su - "$USER" -c "k8s-toolbox desk -C 'gcloud auth login'"
+    sudo su - "$USER" -c "$(k8s-toolbox desk --show) gcloud auth login"
 done"
