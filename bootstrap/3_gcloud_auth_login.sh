@@ -11,9 +11,9 @@ cat <<EOF > /tmp/gcloud-login.sh
 
 set -x
 
-sh -c "\$(k8s-toolbox desk --show) gcloud auth login"
-sh -c "\$(k8s-toolbox desk --show) gcloud config set project coastal-sunspot-206412"
-sh -c "\$(k8s-toolbox desk --show) gcloud compute instances list"
+sh -c "\$(k8s-toolbox desk --dry-run) gcloud auth login"
+sh -c "\$(k8s-toolbox desk --dry-run) gcloud config set project coastal-sunspot-206412"
+sh -c "\$(k8s-toolbox desk --dry-run) gcloud compute instances list"
 
 EOF
 
