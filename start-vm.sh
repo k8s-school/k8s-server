@@ -30,7 +30,7 @@ until ssh -o "StrictHostKeyChecking no" root@"$ip_address" true 2> /dev/null
     sleep 5
 done
 
-ssh root@"$ip_address" -- "curl  -s https://raw.githubusercontent.com/k8s-school/k8s-server/main/bootstrap/init.sh | bash"
+ssh root@"$ip_address" -- "curl  -s https://raw.githubusercontent.com/k8s-school/k8s-server/main/bootstrap/ubuntu/init.sh | bash"
 
 echo "Connect to the server with below command:"
 echo "ssh k8s0@$ip_address"
