@@ -8,7 +8,6 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 . $DIR/env.sh
 
-instance_id=$(scw instance server list | grep $INSTANCE_NAME | awk '{print $1}')
-ip_address=$(scw instance server wait "$instance_id" | grep PublicIP.Address | awk '{print $2}')
+ip_address=$(scw instance ip list tags.0="$INSTANCE_NAME" | grep "$INSTANCE_NAME" |   awk '{print $2}')
 
 echo "$ip_address"
