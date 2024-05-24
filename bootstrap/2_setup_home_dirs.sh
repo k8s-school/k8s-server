@@ -25,5 +25,4 @@ do
       sudo cp -prf /tmp/.config $GCLOUD_CONFIG
       sudo rm -rf /tmp/.config
     fi
-    sudo su $USER sh -c "git clone https://github.com/k8s-school/k8s-school /home/$USER/k8s-school"
 done
