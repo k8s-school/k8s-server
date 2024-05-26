@@ -1,5 +1,0 @@
-kind:
-  # Use calico CNI instead of kindnet
-  useCalico: true
-  # Number of worker nodes
-  workers: 3
