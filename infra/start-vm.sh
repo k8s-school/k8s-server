@@ -9,9 +9,9 @@ set -euxo pipefail
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-bootstrap_dir="/home/$K8S_USER/k8s-server/bootstrap"
-
 . $DIR/env.sh
+
+bootstrap_dir="/home/$K8S_USER/k8s-server/bootstrap"
 
 if scw instance server list | grep $INSTANCE_NAME; then
   echo "ERROR: Instance $INSTANCE_NAME already exists" >&2
