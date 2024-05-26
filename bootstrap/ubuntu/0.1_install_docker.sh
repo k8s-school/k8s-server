@@ -14,6 +14,6 @@ echo \
 sudo apt-get -y update
 sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 sudo usermod -a -G docker $USER
-newgrp docker
-sudo systemctl start docker
 
+sudo systemctl start docker
+newgrp docker
