@@ -17,6 +17,7 @@ echo "Add sudo access without password"
 echo "$user ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/"$user"
 
 echo "Setup sshd"
-sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+# SCW config
+sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config.d/60-cloudimg-settings.conf
 systemctl restart sshd
 

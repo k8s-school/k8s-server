@@ -21,14 +21,13 @@ while getopts "d" opt; do
   esac
 done
 
-instance_id=$(scw instance server list | grep "$INSTANCE_NAME" | awk '{print $1}')
+instance_id=$(scw instance server list | grep "$INSTANCE_NAME" | awk '{print $1}' || echo "")
 
 if [ -n "$instance_id" ]; then
   echo "Terminate $instance_id"
   scw instance server terminate "$instance_id"
 else
-  echo "Instance openshift not created"
-  exit 1
+  echo "Instance openshift does not exist"
 fi
 
 if [ "$delete_ip" = true ]; then
