@@ -27,11 +27,13 @@ if [ -n "$instance_id" ]; then
   echo "Terminate $instance_id"
   scw instance server terminate "$instance_id"
 else
-  echo "Instance openshift does not exist"
+  echo "WARN: Instance $INSTANCE_NAME does not exist"
 fi
 
 if [ "$delete_ip" = true ]; then
   ip_id=$(scw instance ip list tags.0="$INSTANCE_NAME" | grep "$INSTANCE_NAME" |   awk '{print $1}')
   echo "Delete IP address $ip_id"
   scw instance ip delete "$ip_id"
+else
+  echo "WARN: No IP adress for $INSTANCE_NAME"
 fi
