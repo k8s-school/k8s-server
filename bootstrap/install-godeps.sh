@@ -4,6 +4,9 @@ set -euxo pipefail
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
+# Go may just have been installed
+. $HOME/.bashrc
+
 mkdir -p $HOME/src
 
 # Install kubectl and setup auto-completion
