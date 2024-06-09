@@ -15,4 +15,5 @@ $DIR/2_setup_home_dirs.sh
 $DIR/0.1_install_docker.sh
 ktbx create
 
-$DIR/../docker_load.sh
+# TODO
+# $DIR/../docker_load.sh
