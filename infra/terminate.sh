@@ -35,5 +35,5 @@ if [ "$delete_ip" = true ]; then
   echo "Delete IP address $ip_id"
   scw instance ip delete "$ip_id"
 else
-  echo "WARN: No IP adress for $INSTANCE_NAME"
+  echo "WARN: IP address not delete for instance $INSTANCE_NAME"
 fi
