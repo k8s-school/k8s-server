@@ -7,7 +7,7 @@ set -euxo pipefail
 
 dnf install -y bash-completion bind-utils git
 
-user="openshift"
+user="k8s0"
 pass="0p&nsh!ft"
 
 adduser "$user"
