@@ -11,8 +11,7 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 . $DIR/env.sh
 
-# distrib=ubuntu
-distrib=fedora
+distrib=$(echo $DISTRIBUTION | cut -d "_" -f 1)
 
 bootstrap_dir="/home/$K8S_USER/k8s-server/bootstrap"
 
