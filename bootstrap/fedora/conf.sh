@@ -1,4 +1,2 @@
-VERSION="2.25.0"
+VERSION="2.37.1"
 
-# This version crashed repeatedly on scw vm
-# VERSION="2.29.0"

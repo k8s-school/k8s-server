@@ -11,6 +11,9 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 . $DIR/env.sh
 
+# distrib=ubuntu
+distrib=fedora
+
 bootstrap_dir="/home/$K8S_USER/k8s-server/bootstrap"
 
 if scw instance server list | grep $INSTANCE_NAME; then
@@ -39,8 +42,8 @@ until ssh -o "StrictHostKeyChecking no" root@"$ip_address" true 2> /dev/null
     sleep 5
 done
 
-ssh root@"$ip_address" -- "curl  -s https://raw.githubusercontent.com/k8s-school/k8s-server/main/bootstrap/ubuntu/init.sh | bash"
-ssh root@"$ip_address" -- "su - "$K8S_USER" -c '$bootstrap_dir/ubuntu/run_all.sh'"
+ssh root@"$ip_address" -- "curl  -s https://raw.githubusercontent.com/k8s-school/k8s-server/main/bootstrap/$distrib/0_init.sh | bash"
+ssh root@"$ip_address" -- "su - "$K8S_USER" -c '$bootstrap_dir/$distrib/run_all.sh'"
 
 
 echo "Connect to the server with below command:"

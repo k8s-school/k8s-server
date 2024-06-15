@@ -18,8 +18,9 @@ fi
 
 crc="$HOME/crc-linux-$VERSION-amd64"/crc
 
-echo "Preset okd for crc..."
-$crc config set preset okd
+echo "Preset openshift for crc..."
+# $crc config set preset okd
+$crc config set preset openshift
 
 echo "Setting up crc..."
 $crc config set cpus 7
@@ -29,5 +30,9 @@ $crc config set skip-check-daemon-systemd-unit true
 $crc config set skip-check-daemon-systemd-sockets true
 # Enable cluster monitoring if true
 # this require at least 14 GiB of memory (a value of 14336)
-$crc config set enable-cluster-monitoring false 
+$crc config set enable-cluster-monitoring false
 $crc setup
+
+# Set the libvirt service to start at boot
+sudo systemctl enable libvirtd.service
+sudo systemctl start libvirtd.service
