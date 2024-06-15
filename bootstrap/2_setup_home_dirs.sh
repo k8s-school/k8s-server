@@ -6,6 +6,8 @@ DIR=$(cd "$(dirname "$0")"; pwd -P)
 
 . $DIR/env.sh
 
+repo="k8s-school"
+repo="openshift-advanced"
 
 for ((i=1; i<=$NB_USER; i++))
 do
@@ -22,5 +24,5 @@ do
       sudo cp -prf /tmp/.config $GCLOUD_CONFIG
       sudo rm -rf /tmp/.config
     fi
-    sudo su $USER sh -c "git clone https://github.com/k8s-school/k8s-school /home/$USER/.ktbx/homefs/k8s-school"
+    sudo su $USER sh -c "git clone https://github.com/k8s-school/$repo /home/$USER/.ktbx/homefs/$repo"
 done
