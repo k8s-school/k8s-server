@@ -10,6 +10,10 @@ $DIR/../upgrade-sysctl.sh
 $DIR/0.1_install_docker.sh
 $DIR/1_addusers.sh
 $DIR/../2_setup_home_dirs.sh
+$DIR/crc-setup.sh
+$DIR/crc-start.sh
+
+newgrp docker
 ktbx create
 
 # TODO
