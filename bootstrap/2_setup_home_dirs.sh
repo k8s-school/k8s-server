@@ -4,7 +4,7 @@ set -euxo pipefail
 
 DIR=$(cd "$(dirname "$0")"; pwd -P)
 
-. $DIR/../env.sh
+. $DIR/env.sh
 
 
 for ((i=1; i<=$NB_USER; i++))
