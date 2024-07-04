@@ -1,0 +1,2 @@
+- switch repo to clone between openshift-advanced and k8s-school (cf. env.sh)
+- check ci from 3_xxx

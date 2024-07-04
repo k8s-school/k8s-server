@@ -2,7 +2,7 @@
 
 set -euxo pipefail
 
-GO_VERSION="1.21.5"
+GO_VERSION="1.22.5"
 
 # Install Go
 sudo rm -rf /usr/local/go
