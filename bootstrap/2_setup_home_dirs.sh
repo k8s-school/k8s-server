@@ -6,8 +6,12 @@ DIR=$(cd "$(dirname "$0")"; pwd -P)
 
 . $DIR/env.sh
 
-repo="k8s-school"
-repo="openshift-advanced"
+# Test if DISTRIBUTION start with ubuntu
+if [[ $DISTRIBUTION == "ubuntu"* ]]; then
+  repo="k8s-school"
+else
+  repo="openshift-advanced"
+fi
 
 for ((i=1; i<=$NB_USER; i++))
 do
