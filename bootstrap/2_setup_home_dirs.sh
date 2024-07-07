@@ -6,8 +6,9 @@ DIR=$(cd "$(dirname "$0")"; pwd -P)
 
 . $DIR/env.sh
 
-# Test if DISTRIBUTION start with ubuntu
-if [[ $DISTRIBUTION == "ubuntu"* ]]; then
+# Test if os is ubuntu
+distrib=$(lsb_release -si)
+if [ $distrib == "Ubuntu" ]; then
   repo="k8s-school"
 else
   repo="openshift-advanced"
