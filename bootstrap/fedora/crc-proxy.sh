@@ -5,6 +5,11 @@ set -euxo pipefail
 # See https://www.itsfullofstars.de/2021/07/remote-access-to-red-hat-crc/
 # or https://cloud.redhat.com/blog/accessing-codeready-containers-on-a-remote-server/
 
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
+. "$DIR"/../env.sh
+
+crc="$HOME/crc-linux-$CRC_VERSION-amd64"/crc
 
 # Configuring the Host Machine
 
@@ -30,7 +35,7 @@ sudo sed -i 's/^SELINUX=enforcing$/SELINUX=permissive/' /etc/selinux/config
 
 # Scaleway specific
 export SERVER_IP=$(ip add show eth0 | grep -w inet | awk '{print $2;exit}' | cut -d'/' -f1)
-export CRC_IP=$(crc ip)
+export CRC_IP=$($crc ip)
 
 HA_PROXY_CONFIG=/etc/haproxy/haproxy.cfg
 sudo cp "$HA_PROXY_CONFIG" /etc/haproxy/haproxy.cfg.orig
