@@ -4,19 +4,19 @@ set -euxo pipefail
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-. "$DIR"/conf.sh
+. "$DIR"/../env.sh
 
-if [ ! -e "$HOME/crc-linux-$VERSION-amd64" ]; then
-    echo "crc-linux-$VERSION-amd64 not found, downloading..."
+if [ ! -e "$HOME/crc-linux-$CRC_VERSION-amd64" ]; then
+    echo "crc-linux-$CRC_VERSION-amd64 not found, downloading..."
     # FIXME set a destination directory
-    curl -Lo $HOME/crc-linux-amd64.tar.xz https://developers.redhat.com/content-gateway/file/pub/openshift-v4/clients/crc/$VERSION/crc-linux-amd64.tar.xz
+    curl -Lo $HOME/crc-linux-amd64.tar.xz https://developers.redhat.com/content-gateway/file/pub/openshift-v4/clients/crc/$CRC_VERSION/crc-linux-amd64.tar.xz
     tar xvf $HOME/crc-linux-amd64.tar.xz --directory $HOME
     rm $HOME/crc-linux-amd64.tar.xz
 else
-    echo "crc-linux-$VERSION-amd64 found, skipping download..."
+    echo "crc-linux-$CRC_VERSION-amd64 found, skipping download..."
 fi
 
-crc="$HOME/crc-linux-$VERSION-amd64"/crc
+crc="$HOME/crc-linux-$CRC_VERSION-amd64"/crc
 
 echo "Preset openshift for crc..."
 # $crc config set preset okd

@@ -2,6 +2,10 @@
 
 set -euxo pipefail
 
-crc="$HOME/crc-linux-$VERSION-amd64"/crc
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
+. "$DIR"/../env.sh
+
+crc="$HOME/crc-linux-$CRC_VERSION-amd64"/crc
 $crc delete
 rm -rf "$HOME/.crc/cache/*"

@@ -20,6 +20,7 @@ if scw instance server list | grep $INSTANCE_NAME; then
   exit 1
 fi
 
+## If tag update is needed: scw instance ip update <ip-id> tags.0=openshift
 ip_id=$(scw instance ip list tags.0="$INSTANCE_NAME" | grep -w "$INSTANCE_NAME" |   awk '{print $1}' || echo "")
 echo "Using existing IP adress $ip_id"
 if [ -n "$ip_id" ]
@@ -33,7 +34,6 @@ scw instance server create zone="fr-par-1" image=$DISTRIBUTION type="$INSTANCE_T
 instance_id=$(scw instance server list | grep $INSTANCE_NAME | awk '{print $1}')
 ip_address=$(scw instance server wait "$instance_id" | grep PublicIP.Address | awk '{print $2}')
 
-
 ssh-keygen -f "/home/fjammes/.ssh/known_hosts" -R "$ip_address"
 until ssh -o "StrictHostKeyChecking no" root@"$ip_address" true 2> /dev/null
   do
@@ -43,7 +43,6 @@ done
 
 ssh root@"$ip_address" -- "curl  -s https://raw.githubusercontent.com/k8s-school/k8s-server/main/bootstrap/$distrib/0_init.sh | bash"
 ssh root@"$ip_address" -- "su - "$K8S_USER" -c '$bootstrap_dir/$distrib/run_all.sh'"
-
 
 echo "Connect to the server with below command:"
 echo "ssh k8s0@$ip_address"
