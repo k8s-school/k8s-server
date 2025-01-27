@@ -1,1 +1,1 @@
-env.fedora.sh
+env.ubuntu.sh

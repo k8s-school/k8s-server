@@ -2,20 +2,32 @@
 
 # Terminate the 'openshift' instance on Scaleway
 
-set -euxo pipefail
+set -euo pipefail
+
+usage () {
+  echo "Usage: $0 [-d] [-h]"
+  echo "Terminate the kubernetes instance on Scaleway"
+  echo "  -h: Display this help message"
+  echo "  -d: Delete the IP address associated with the instance"
+  exit 1
+}
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 . $DIR/env.sh
 
 delete_ip=false
-while getopts "d" opt; do
+while getopts dh opt; do
   case $opt in
     d)
       delete_ip=true
       ;;
+    h)
+      usage
+      ;;
     \?)
       echo "Invalid option: -$OPTARG" >&2
+      usage
       exit 1
       ;;
   esac
