@@ -34,7 +34,7 @@ scw instance server create zone="fr-par-1" image=$DISTRIBUTION type="$INSTANCE_T
 instance_id=$(scw instance server list | grep $INSTANCE_NAME | awk '{print $1}')
 ip_address=$(scw instance server wait "$instance_id" | grep PublicIP.Address | awk '{print $2}')
 
-ssh-keygen -f "/home/fjammes/.ssh/known_hosts" -R "$ip_address"
+ssh-keygen -f "$HOME/.ssh/known_hosts" -R "$ip_address"
 until ssh -o "StrictHostKeyChecking no" root@"$ip_address" true 2> /dev/null
   do
     echo "Waiting for sshd on $ip_address..."
