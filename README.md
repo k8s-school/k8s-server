@@ -11,4 +11,5 @@ git clone git clone https://github.com/k8s-school/k8s-server.git
 cd k8s-server/infra
 ln -s env.ubuntu.sh env.sh
 ./start.sh
+./terminate.sh -d
 ```
