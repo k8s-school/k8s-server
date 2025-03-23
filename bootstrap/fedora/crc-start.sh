@@ -6,9 +6,10 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 . "$DIR"/../env.sh
 
-crc="$HOME/crc-linux-$CRC_VERSION-amd64"/crc
+
+export PATH=$HOME/bin:$PATH
 
 echo "Starting crc..."
-$crc start
+crc start
 
 sudo cp "$HOME/.crc/bin/oc/oc" "/usr/local/bin/"

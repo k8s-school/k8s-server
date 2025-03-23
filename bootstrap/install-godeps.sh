@@ -10,7 +10,7 @@ export PATH=/usr/local/go/bin:$PATH
 mkdir -p $HOME/src
 
 # Install kubectl and setup auto-completion
-go install github.com/k8s-school/ktbx@v1.1.3-rc9
+go install github.com/k8s-school/ktbx@v1.1.4-rc6
 sudo cp "$HOME/go/bin/ktbx" "/usr/local/bin"
 go install -v github.com/k8s-school/ink@v0.0.1-rc3
 sudo cp "$HOME/go/bin/ink" "/usr/local/bin"

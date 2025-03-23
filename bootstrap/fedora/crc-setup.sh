@@ -19,6 +19,8 @@ fi
 mkdir -p $HOME/bin
 ln -sf $HOME/crc-linux-$CRC_VERSION-amd64/crc  $HOME/bin/crc
 
+export PATH=$HOME/bin:$PATH
+
 echo "Preset openshift for crc..."
 # $crc config set preset okd
 crc config set preset openshift
