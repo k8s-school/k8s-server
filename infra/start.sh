@@ -30,7 +30,8 @@ else
   ip_id=$(scw instance ip create tags.0="$INSTANCE_NAME" | egrep "^ID" |  awk '{print $2}')
 fi
 
-scw instance server create zone="fr-par-1" image=$DISTRIBUTION type="$INSTANCE_TYPE" ip="$ip_id" name=$INSTANCE_NAME root-volume=local:100GB
+# scw instance server create zone="fr-par-1" image=$DISTRIBUTION type="$INSTANCE_TYPE" ip="$ip_id" name=$INSTANCE_NAME root-volume=local:100GB
+scw instance server create zone="fr-par-1" image=$DISTRIBUTION type="$INSTANCE_TYPE" ip="$ip_id" name=$INSTANCE_NAME root-volume=local:$DISK_SIZE
 instance_id=$(scw instance server list | grep $INSTANCE_NAME | awk '{print $1}')
 ip_address=$(scw instance server wait "$instance_id" | grep PublicIP.Address | awk '{print $2}')
 
