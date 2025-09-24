@@ -15,17 +15,18 @@ IMAGES=(
   "$NGINX_IMAGE"
   "k8sschool/kubectl-proxy:1.27.3"
   "curlimages/curl:8.16.0"
-    "mongo:3.4.1"
-    "ubuntu:24.04"
-    "docker.io/bitnami/postgresql:14.5.0-debian-11-r14"
-    "docker.io/k8sschool/k8s-toolbox:latest"
-
+  "mongo:3.4.1"
+  "ubuntu:24.04"
+  "docker.io/bitnami/postgresql:14.5.0-debian-11-r14"
+  "registry.k8s.io/pause:2.0"
 )
 
 docker login
 for IMAGE in "${IMAGES[@]}"; do
   docker pull "$IMAGE"
 done
+
+docker pull "docker.io/k8sschool/k8s-toolbox:latest"
 
 for IMAGE in "${IMAGES[@]}"; do
   kind load docker-image "$IMAGE"

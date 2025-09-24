@@ -34,6 +34,7 @@ crc config set skip-check-daemon-systemd-sockets true
 # Enable cluster monitoring if true
 # this require at least 14 GiB of memory (a value of 14336)
 crc config set enable-cluster-monitoring false
+crc config set disk-size 50
 crc setup
 
 # Set the libvirt service to start at boot
