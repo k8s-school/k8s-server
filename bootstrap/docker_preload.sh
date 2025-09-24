@@ -18,7 +18,6 @@ IMAGES=(
   "mongo:3.4.1"
   "ubuntu:24.04"
   "docker.io/bitnami/postgresql:14.5.0-debian-11-r14"
-  "registry.k8s.io/pause:2.0"
 )
 
 docker login
