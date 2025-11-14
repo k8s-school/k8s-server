@@ -31,10 +31,6 @@ crc config set memory 24576
 # Required on Fedora 38
 crc config set skip-check-daemon-systemd-unit true
 crc config set skip-check-daemon-systemd-sockets true
-# Change le port HTTP (80 -> 8080)
-crc config set ingress-http-port 8080
-# Change le port HTTPS (443 -> 8443)
-crc config set ingress-https-port 8443
 # Enable cluster monitoring if true
 # this require at least 14 GiB of memory (a value of 14336)
 crc config set enable-cluster-monitoring false
