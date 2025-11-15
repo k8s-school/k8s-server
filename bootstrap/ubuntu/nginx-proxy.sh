@@ -54,8 +54,7 @@ server {
 }
 
 server {
-    listen 443 ssl;
-    http2 on;
+    listen 443 ssl http2;
     server_name $NIP_DOMAIN;
 
     ssl_certificate /etc/nginx/ssl/nginx-selfsigned.crt;
