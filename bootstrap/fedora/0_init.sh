@@ -7,6 +7,10 @@ set -euxo pipefail
 
 dnf install -y bash-completion bind-utils git
 
+echo "Installing Cockpit..."
+sudo dnf install -y cockpit
+sudo systemctl enable --now cockpit.socket
+
 user="k8s0"
 pass="0p&nsh!ft"
 
