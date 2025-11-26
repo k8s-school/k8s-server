@@ -123,7 +123,7 @@ server {
         rewrite ^/kuard-1([0-9])(/.*)?\$ \$2 break;
         proxy_pass http://$K8S_IP:809\$1;
         proxy_set_header Host \$host;
-        proxy_Set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_http_version 1.1;
@@ -134,9 +134,9 @@ server {
     location ~ ^/(built|static|favicon\.ico) {
         proxy_pass http://$K8S_IP:8081;
         proxy_set_header Host \$host;
-        proxy_Set_header X-Forwarded-Proto \$scheme;
-        proxy_Set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_Set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Real-IP \$remote_addr;
         proxy_http_version 1.1;
         proxy_buffering off;
     }
