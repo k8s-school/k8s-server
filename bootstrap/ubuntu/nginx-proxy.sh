@@ -43,8 +43,6 @@ openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
 # Configure nginx
 echo ""
 echo "Configuring nginx..."
-
-# Main cockpit proxy configuration
 cat > /etc/nginx/sites-available/cockpit-proxy <<EOF
 server {
     listen 80;
