@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(sudo nginx:*)"
+      "Bash(sudo nginx:*)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []
