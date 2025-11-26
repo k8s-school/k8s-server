@@ -89,7 +89,7 @@ for i in {0..19}; do
     if [ \$i -le 9 ]; then
         PORT=808\$i
     else
-        PORT=809\$((i-10))
+        PORT=809\$\((\$i-10))
     fi
 
     cat > /etc/nginx/sites-available/kuard-\$i <<EOF
