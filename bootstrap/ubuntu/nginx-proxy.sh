@@ -86,12 +86,28 @@ EOF
 # Generate individual kuard sites for i=0 to 19
 echo "Creating individual kuard sites..."
 for i in {0..19}; do
-    if [ \$i -le 9 ]; then
-        PORT=808\$i
-    else
-        j=\$((i-10))
-        PORT=809\$j
-    fi
+    case \$i in
+        0) PORT=8080 ;;
+        1) PORT=8081 ;;
+        2) PORT=8082 ;;
+        3) PORT=8083 ;;
+        4) PORT=8084 ;;
+        5) PORT=8085 ;;
+        6) PORT=8086 ;;
+        7) PORT=8087 ;;
+        8) PORT=8088 ;;
+        9) PORT=8089 ;;
+        10) PORT=8090 ;;
+        11) PORT=8091 ;;
+        12) PORT=8092 ;;
+        13) PORT=8093 ;;
+        14) PORT=8094 ;;
+        15) PORT=8095 ;;
+        16) PORT=8096 ;;
+        17) PORT=8097 ;;
+        18) PORT=8098 ;;
+        19) PORT=8099 ;;
+    esac
 
     cat > /etc/nginx/sites-available/kuard-\$i <<EOF
 server {
