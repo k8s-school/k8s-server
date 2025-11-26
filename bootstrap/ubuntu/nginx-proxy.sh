@@ -107,7 +107,7 @@ server {
     ssl_prefer_server_ciphers off;
 
     # Kuard redirections for i=0 to 9 (ports 8080-8089)
-    location ~ ^/kuard-([0-9])/ {
+    location ~ ^/kuard-([0-9])(/.*)?$ {
         proxy_pass http://$K8S_IP:808\$1/;
         proxy_set_header Host \$host;
         proxy_set_header X-Forwarded-Proto \$scheme;
@@ -118,7 +118,7 @@ server {
     }
 
     # Kuard redirections for i=10 to 19 (ports 8090-8099)
-    location ~ ^/kuard-1([0-9])/ {
+    location ~ ^/kuard-1([0-9])(/.*)?$ {
         proxy_pass http://$K8S_IP:809\$1/;
         proxy_set_header Host \$host;
         proxy_set_header X-Forwarded-Proto \$scheme;
@@ -127,6 +127,7 @@ server {
         proxy_http_version 1.1;
         proxy_buffering off;
     }
+
 }
 EOF
 
