@@ -65,6 +65,28 @@ server {
     ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384;
     ssl_prefer_server_ciphers off;
 
+    # Kuard redirections for i=0 to 9 (ports 8080-8089)
+    location ~ ^/kuard-([0-9])$ {
+        proxy_pass http://$K8S_IP:808\$1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_http_version 1.1;
+        proxy_buffering off;
+    }
+
+    # Kuard redirections for i=10 to 19 (ports 8090-8099)
+    location ~ ^/kuard-1([0-9])$ {
+        proxy_pass http://$K8S_IP:809\$1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_http_version 1.1;
+        proxy_buffering off;
+    }
+
     location / {
         proxy_pass https://$K8S_IP:9090;
         proxy_set_header Host \$host;
