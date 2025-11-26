@@ -132,7 +132,7 @@ server {
     ssl_prefer_server_ciphers off;
 
     location / {
-        proxy_pass http://$K8S_IP:\$PORT/;
+        proxy_pass http://$K8S_IP:\${PORT}/;
         proxy_set_header Host \\\$host;
         proxy_set_header X-Forwarded-Proto \\\$scheme;
         proxy_set_header X-Forwarded-For \\\$proxy_add_x_forwarded_for;
@@ -150,7 +150,7 @@ ln -sf /etc/nginx/sites-available/cockpit-proxy /etc/nginx/sites-enabled/
 # Enable all kuard sites
 echo "Enabling kuard sites..."
 for i in {0..19}; do
-    ln -sf /etc/nginx/sites-available/kuard-\$i /etc/nginx/sites-enabled/
+    ln -sf "/etc/nginx/sites-available/kuard-\$i" "/etc/nginx/sites-enabled/"
 done
 
 rm -f /etc/nginx/sites-enabled/default

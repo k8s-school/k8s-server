@@ -13,11 +13,14 @@ NGINX_IMAGE="nginx:$NGINX_VERSION"
 
 IMAGES=(
   "$NGINX_IMAGE"
+  "nginx:1.22"
+  "nginx:1.23"
   "k8sschool/kubectl-proxy:1.27.3"
   "curlimages/curl:8.16.0"
   "mongo:3.4.1"
   "ubuntu:24.04"
   "bitnami/postgresql:latest"
+  "nginxinc/nginx-unprivileged:1.28.0-alpine3.21-perl"
 )
 
 docker login
