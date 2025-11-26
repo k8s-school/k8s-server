@@ -86,7 +86,7 @@ EOF
 # Generate individual kuard sites for i=0 to 19
 echo "Creating individual kuard sites..."
 for i in {0..19}; do
-    case \$i in
+    case $i in
         0) PORT=8080 ;;
         1) PORT=8081 ;;
         2) PORT=8082 ;;
@@ -109,19 +109,19 @@ for i in {0..19}; do
         19) PORT=8099 ;;
     esac
 
-    cat > /etc/nginx/sites-available/kuard-\$i <<EOF
+    cat > /etc/nginx/sites-available/kuard-$i <<EOF
 server {
     listen 80;
-    server_name kuard-\$i.$NIP_DOMAIN;
+    server_name kuard-$i.$NIP_DOMAIN;
 
     location / {
-        return 301 https://\\\$host\\\$request_uri;
+        return 301 https://\$host\$request_uri;
     }
 }
 
 server {
     listen 443 ssl http2;
-    server_name kuard-\$i.$NIP_DOMAIN;
+    server_name kuard-$i.$NIP_DOMAIN;
 
     ssl_certificate /etc/nginx/ssl/nginx-selfsigned.crt;
     ssl_certificate_key /etc/nginx/ssl/nginx-selfsigned.key;
@@ -133,10 +133,10 @@ server {
 
     location / {
         proxy_pass http://$K8S_IP:$PORT/;
-        proxy_set_header Host \\\$host;
-        proxy_set_header X-Forwarded-Proto \\\$scheme;
-        proxy_set_header X-Forwarded-For \\\$proxy_add_x_forwarded_for;
-        proxy_set_header X-Real-IP \\\$remote_addr;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Real-IP \$remote_addr;
         proxy_http_version 1.1;
         proxy_buffering off;
     }
@@ -150,7 +150,7 @@ ln -sf /etc/nginx/sites-available/cockpit-proxy /etc/nginx/sites-enabled/
 # Enable all kuard sites
 echo "Enabling kuard sites..."
 for i in {0..19}; do
-    ln -sf /etc/nginx/sites-available/kuard-\$i /etc/nginx/sites-enabled/kuard-\$i
+    ln -sf /etc/nginx/sites-available/kuard-$i /etc/nginx/sites-enabled/kuard-$i
 done
 
 rm -f /etc/nginx/sites-enabled/default
