@@ -43,6 +43,8 @@ openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
 # Configure nginx
 echo ""
 echo "Configuring nginx..."
+
+# Main cockpit proxy configuration
 cat > /etc/nginx/sites-available/cockpit-proxy <<EOF
 server {
     listen 80;
@@ -65,28 +67,6 @@ server {
     ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384;
     ssl_prefer_server_ciphers off;
 
-    # Kuard redirections for i=0 to 9 (ports 8080-8089)
-    location ~ ^/kuard-([0-9])(/.*)?$ {
-        proxy_pass http://$K8S_IP:808\$1/;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_http_version 1.1;
-        proxy_buffering off;
-    }
-
-    # Kuard redirections for i=10 to 19 (ports 8090-8099)
-    location ~ ^/kuard-1([0-9])(/.*)?$ {
-        proxy_pass http://$K8S_IP:809\$1/;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_Set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_http_version 1.1;
-        proxy_buffering off;
-    }
-
     location / {
         proxy_pass https://$K8S_IP:9090;
         proxy_set_header Host \$host;
@@ -103,8 +83,58 @@ server {
 }
 EOF
 
-# Enable site
+# Kuard proxy configuration
+cat > /etc/nginx/sites-available/kuard-proxy <<EOF
+server {
+    listen 80;
+    server_name kuard.$NIP_DOMAIN;
+
+    location / {
+        return 301 https://\$host\$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl http2;
+    server_name kuard.$NIP_DOMAIN;
+
+    ssl_certificate /etc/nginx/ssl/nginx-selfsigned.crt;
+    ssl_certificate_key /etc/nginx/ssl/nginx-selfsigned.key;
+
+    # SSL settings
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384;
+    ssl_prefer_server_ciphers off;
+
+    # Kuard redirections for i=0 to 9 (ports 8080-8089)
+    location ~ ^/kuard-([0-9])(/.*)?$ {
+        rewrite ^/kuard-[0-9](/.*)?\$ \$1 break;
+        proxy_pass http://$K8S_IP:808\$1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_http_version 1.1;
+        proxy_buffering off;
+    }
+
+    # Kuard redirections for i=10 to 19 (ports 8090-8099)
+    location ~ ^/kuard-1([0-9])(/.*)?$ {
+        rewrite ^/kuard-1[0-9](/.*)?\$ \$1 break;
+        proxy_pass http://$K8S_IP:809\$1;
+        proxy_set_header Host \$host;
+        proxy_Set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_http_version 1.1;
+        proxy_buffering off;
+    }
+}
+EOF
+
+# Enable sites
 ln -sf /etc/nginx/sites-available/cockpit-proxy /etc/nginx/sites-enabled/
+ln -sf /etc/nginx/sites-available/kuard-proxy /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
 
 # Test and start nginx
