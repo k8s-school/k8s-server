@@ -3,7 +3,9 @@
 set -euxo pipefail
 
 sudo apt-get update -y
-sudo apt-get install -y bash-completion git docker.io curl openssh-server
+sudo apt-get install -y bash-completion git docker.io curl openssh-server cockpit
+
+sudo systemctl status cockpit.socket
 
 user="k8s0"
 pass="changeme"
