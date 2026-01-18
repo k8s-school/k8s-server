@@ -15,6 +15,10 @@ IMAGES=(
   "$NGINX_IMAGE"
   "nginx:1.22"
   "nginx:1.23"
+  "nginx:alpine"
+  "alpine:3.19"
+  "alpine:latest"
+  "busybox:1.36"
   "k8sschool/kubectl-proxy:1.27.3"
   "k8sschool/kuard-amd64:1"
   "k8sschool/kuard-amd64:blue"
@@ -22,7 +26,10 @@ IMAGES=(
   "curlimages/curl:8.16.0"
   "mongo:3.4.1"
   "ubuntu:24.04"
+  "ubuntu:latest"
   "bitnami/postgresql:latest"
+  "registry:2"
+  "golang:1.21-alpine"
   "nginxinc/nginx-unprivileged:1.28.0-alpine3.21-perl"
 )
 
