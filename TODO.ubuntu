@@ -1,0 +1,7 @@
+k8s0@k8s:~/k8s-server$ cd bootstrap/
+k8s0@k8s:~/k8s-server/bootstrap$ sudo vi /etc/ssh/
+moduli                    ssh_config.d/             ssh_host_ecdsa_key.pub    ssh_host_ed25519_key.pub  ssh_host_rsa_key.pub      sshd_config
+ssh_config                ssh_host_ecdsa_key        ssh_host_ed25519_key      ssh_host_rsa_key          ssh_import_id             sshd_config.d/
+k8s0@k8s:~/k8s-server/bootstrap$ sudo vi /etc/ssh/sshd_config.d/60-cloudimg-settings.conf 
+k8s0@k8s:~/k8s-server/bootstrap$ sudo systemctl restart sshd
+

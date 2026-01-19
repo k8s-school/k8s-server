@@ -36,9 +36,29 @@ IMAGES=(
   "ubuntu:24.04"
   "ubuntu:latest"
   "bitnami/postgresql:latest"
-  "registry:2"
   "golang:1.21-alpine"
   "nginxinc/nginx-unprivileged:1.28.0-alpine3.21-perl"
+  # Falco security images
+  "docker.io/falcosecurity/falco:0.42.1"
+  "docker.io/falcosecurity/falcoctl:0.11.4"
+  "docker.io/falcosecurity/falco-driver-loader:0.42.1"
+  "docker.io/falcosecurity/falcosidekick:2.32.0"
+  "docker.io/falcosecurity/falcosidekick-ui:2.2.0"
+  "docker.io/redis/redis-stack:7.2.0-v11"
+)
+i
+# CKS
+IMAGES=(
+  "$NGINX_IMAGE"
+  "nginx:1.22"
+  "nginx:1.23"
+  "nginx:alpine"
+  "alpine:3.19"
+  "alpine:latest"
+  "busybox:1.36"
+  "curlimages/curl:8.16.0"
+  "ubuntu:24.04"
+  "golang:1.21-alpine"
   # Falco security images
   "docker.io/falcosecurity/falco:0.42.1"
   "docker.io/falcosecurity/falcoctl:0.11.4"
@@ -54,6 +74,7 @@ for IMAGE in "${IMAGES[@]}"; do
 done
 
 docker pull "docker.io/k8sschool/k8s-toolbox:latest"
+docker pull "docker.io/registry:2"
 
 # Get all kind clusters
 CLUSTERS=$(kind get clusters)
