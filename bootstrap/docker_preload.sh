@@ -46,7 +46,7 @@ IMAGES=(
   "docker.io/falcosecurity/falcosidekick-ui:2.2.0"
   "docker.io/redis/redis-stack:7.2.0-v11"
 )
-i
+
 # CKS
 IMAGES=(
   "$NGINX_IMAGE"
