@@ -6,7 +6,15 @@ set -euxo pipefail
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-# TODO TODO!!!
+# Check available disk space (require at least 10GB free)
+AVAILABLE_GB=$(df / | tail -1 | awk '{print int($4/1024/1024)}')
+MIN_REQUIRED_GB=10
+
+echo "Available disk space: ${AVAILABLE_GB}GB"
+if [ "$AVAILABLE_GB" -lt "$MIN_REQUIRED_GB" ]; then
+  echo "Error: Insufficient disk space. Available: ${AVAILABLE_GB}GB, Required: ${MIN_REQUIRED_GB}GB"
+  exit 1
+fi
 
 NGINX_VERSION=1.25.3
 NGINX_IMAGE="nginx:$NGINX_VERSION"
@@ -31,6 +39,13 @@ IMAGES=(
   "registry:2"
   "golang:1.21-alpine"
   "nginxinc/nginx-unprivileged:1.28.0-alpine3.21-perl"
+  # Falco security images
+  "docker.io/falcosecurity/falco:0.42.1"
+  "docker.io/falcosecurity/falcoctl:0.11.4"
+  "docker.io/falcosecurity/falco-driver-loader:0.42.1"
+  "docker.io/falcosecurity/falcosidekick:2.32.0"
+  "docker.io/falcosecurity/falcosidekick-ui:2.2.0"
+  "docker.io/redis/redis-stack:7.2.0-v11"
 )
 
 docker login
@@ -40,8 +55,22 @@ done
 
 docker pull "docker.io/k8sschool/k8s-toolbox:latest"
 
-for IMAGE in "${IMAGES[@]}"; do
-  kind load docker-image "$IMAGE"
+# Get all kind clusters
+CLUSTERS=$(kind get clusters)
+if [ -z "$CLUSTERS" ]; then
+  echo "No kind clusters found"
+  exit 1
+fi
+
+echo "Found kind clusters: $CLUSTERS"
+
+# Load images into all kind clusters
+for CLUSTER in $CLUSTERS; do
+  echo "Loading images into cluster: $CLUSTER"
+  for IMAGE in "${IMAGES[@]}"; do
+    echo "  Loading $IMAGE into $CLUSTER"
+    kind load docker-image "$IMAGE" --name "$CLUSTER"
+  done
 done
 
 
