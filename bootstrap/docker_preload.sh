@@ -49,16 +49,9 @@ IMAGES=(
 
 # CKS
 IMAGES=(
-  "$NGINX_IMAGE"
-  "nginx:1.22"
-  "nginx:1.23"
+  "aquasec/kube-bench:v0.14.1"
   "nginx:alpine"
-  "alpine:3.19"
-  "alpine:latest"
   "busybox:1.36"
-  "curlimages/curl:8.16.0"
-  "ubuntu:24.04"
-  "golang:1.21-alpine"
   # Falco security images
   "docker.io/falcosecurity/falco:0.42.1"
   "docker.io/falcosecurity/falcoctl:0.11.4"
