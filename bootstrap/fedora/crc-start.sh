@@ -16,3 +16,12 @@ echo "Starting crc..."
 crc start
 
 sudo cp "$HOME/.crc/bin/oc/oc" "/usr/local/bin/"
+
+# Installing oc-mirror
+git clone https://github.com/openshift/oc-mirror.git /tmp/oc-mirror
+cd /tmp/oc-mirror
+make clean
+make tidy
+make build
+sudo cp /tmp/oc-mirror/bin/oc-mirror /usr/local/bin/
+
