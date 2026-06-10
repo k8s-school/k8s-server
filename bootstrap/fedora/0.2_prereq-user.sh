@@ -6,7 +6,7 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 . "$DIR"/../env.sh
 
-sudo dnf install -y byobu
+sudo dnf install -y byobu skopeo podman
 
 mkdir -p $HOME/src
 

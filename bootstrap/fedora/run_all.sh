@@ -12,6 +12,7 @@ $DIR/1_addusers.sh
 $DIR/../2_setup_home_dirs.sh
 $DIR/crc-setup.sh
 $DIR/crc-start.sh
+$DIR/openshift-tools.sh
 
 newgrp docker
 ktbx create
