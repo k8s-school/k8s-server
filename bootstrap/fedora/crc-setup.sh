@@ -21,6 +21,17 @@ ln -sf $HOME/crc-linux-$CRC_VERSION-amd64/crc  $HOME/bin/crc
 
 export PATH=$HOME/bin:$PATH
 
+# crc setup configures systemd *user* units, which requires a running user
+# systemd instance (and its session/DBus bus). Over SSH or in a non-login
+# shell those are missing, and crc fails with:
+#   Failed to connect to user scope bus via local transport ...
+#   $DBUS_SESSION_BUS_ADDRESS and $XDG_RUNTIME_DIR not defined
+# Enabling linger starts the user systemd instance at boot (and now), and we
+# point the env vars at its runtime dir so this works non-interactively.
+sudo loginctl enable-linger "$USER"
+export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+
 echo "Preset openshift for crc..."
 # $crc config set preset okd
 crc config set preset openshift
@@ -32,6 +43,19 @@ crc config set memory 24576
 # this require at least 14 GiB of memory (a value of 14336)
 crc config set enable-cluster-monitoring false
 crc config set disk-size 50
+
+# Provide the pull secret up front so that `crc start` never prompts for it
+# interactively. pull-secret.txt lives at the repository root.
+PULL_SECRET_FILE="$DIR/../../pull-secret.txt"
+if [ -f "$PULL_SECRET_FILE" ]; then
+    echo "Configuring crc pull secret from $PULL_SECRET_FILE..."
+    cp "$PULL_SECRET_FILE" "$HOME/pull-secret.txt"
+    chmod 600 "$HOME/pull-secret.txt"
+    crc config set pull-secret-file "$HOME/pull-secret.txt"
+else
+    echo "WARNING: $PULL_SECRET_FILE not found, crc will prompt for the pull secret."
+fi
+
 crc setup
 
 # Set the libvirt service to start at boot
