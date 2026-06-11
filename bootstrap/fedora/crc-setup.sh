@@ -45,13 +45,12 @@ crc config set enable-cluster-monitoring false
 crc config set disk-size 50
 
 # Provide the pull secret up front so that `crc start` never prompts for it
-# interactively. pull-secret.txt lives at the repository root.
-PULL_SECRET_FILE="$DIR/../../pull-secret.txt"
+# interactively. infra/start.sh scp's pull-secret.txt into the user's home.
+PULL_SECRET_FILE="$HOME/pull-secret.txt"
 if [ -f "$PULL_SECRET_FILE" ]; then
     echo "Configuring crc pull secret from $PULL_SECRET_FILE..."
-    cp "$PULL_SECRET_FILE" "$HOME/pull-secret.txt"
-    chmod 600 "$HOME/pull-secret.txt"
-    crc config set pull-secret-file "$HOME/pull-secret.txt"
+    chmod 600 "$PULL_SECRET_FILE"
+    crc config set pull-secret-file "$PULL_SECRET_FILE"
 else
     echo "WARNING: $PULL_SECRET_FILE not found, crc will prompt for the pull secret."
 fi
