@@ -28,9 +28,6 @@ crc config set preset openshift
 echo "Setting up crc..."
 crc config set cpus 7
 crc config set memory 24576
-# Required on Fedora 38
-crc config set skip-check-daemon-systemd-unit true
-crc config set skip-check-daemon-systemd-sockets true
 # Enable cluster monitoring if true
 # this require at least 14 GiB of memory (a value of 14336)
 crc config set enable-cluster-monitoring false
