@@ -43,6 +43,19 @@ until ssh -o "StrictHostKeyChecking no" root@"$ip_address" true 2> /dev/null
 done
 
 ssh root@"$ip_address" -- "curl  -s https://raw.githubusercontent.com/k8s-school/k8s-server/main/bootstrap/$distrib/0_init.sh | bash"
+
+# Copy the crc pull secret into the user's home if it exists locally. It is
+# gitignored, so it is absent from the clone that 0_init.sh fetches; crc-setup.sh
+# reads it from $HOME to configure crc non-interactively.
+PULL_SECRET_FILE="$DIR/../pull-secret.txt"
+if [ -f "$PULL_SECRET_FILE" ]; then
+  echo "Copying pull secret to $K8S_USER home on $ip_address..."
+  scp "$PULL_SECRET_FILE" root@"$ip_address":"/home/$K8S_USER/pull-secret.txt"
+  ssh root@"$ip_address" -- "chown $K8S_USER:$K8S_USER /home/$K8S_USER/pull-secret.txt && chmod 600 /home/$K8S_USER/pull-secret.txt"
+else
+  echo "WARNING: $PULL_SECRET_FILE not found, skipping pull secret copy (crc will prompt for it)"
+fi
+
 ssh root@"$ip_address" -- "su - "$K8S_USER" -c '$bootstrap_dir/$distrib/run_all.sh'"
 
 echo "Connect to the server with below command:"

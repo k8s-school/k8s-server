@@ -8,9 +8,6 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 export PATH=$HOME/bin:$PATH
 
-echo "Starting crc daemon..."
-crc daemon &
-
 echo "Starting crc..."
 crc start
 
