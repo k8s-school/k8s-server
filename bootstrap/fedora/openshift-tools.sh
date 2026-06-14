@@ -19,3 +19,7 @@ curl -fsSL "$OC_MIRROR_URL" -o "$TMP_DIR/oc-mirror.tar.gz"
 tar -xzf "$TMP_DIR/oc-mirror.tar.gz" -C "$TMP_DIR"
 chmod +x "$TMP_DIR/oc-mirror"
 sudo install -m 0755 "$TMP_DIR/oc-mirror" /usr/local/bin/oc-mirror
+# Required by oc-mirror
+sudo ln -s /usr/lib64/libgpgme.so.45 /usr/lib64/libgpgme.so.11
+sudo ldconfig
+

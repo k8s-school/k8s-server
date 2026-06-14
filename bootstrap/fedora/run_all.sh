@@ -14,8 +14,10 @@ $DIR/crc-setup.sh
 $DIR/crc-start.sh
 $DIR/openshift-tools.sh
 
-newgrp docker
+sg docker <<'EOF'
 ktbx create
+EOF
+
 
 # TODO
 # $DIR/../docker_load.sh
