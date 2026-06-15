@@ -2,12 +2,8 @@
 
 # Create an Azure Red Hat OpenShift (ARO) cluster.
 #
-# Prerequisites (run once per subscription):
-#   az login
-#   az provider register --namespace Microsoft.RedHatOpenShift --wait
-#   az provider register --namespace Microsoft.Compute --wait
-#   az provider register --namespace Microsoft.Storage --wait
-#   az provider register --namespace Microsoft.Authorization --wait
+# Prerequisites: run ./prereqs.sh first (az CLI install, login, resource
+# provider registration, vCPU quota check).
 
 set -euxo pipefail
 
@@ -36,11 +32,35 @@ else
   echo "WARNING: $PULL_SECRET_FILE not found, creating cluster without pull secret"
 fi
 
+# Pre-create the cluster's AAD application/service principal ourselves,
+# as two separate az calls. az aro create's built-in creation calls
+# "create application" immediately followed by "add password" on the new
+# object, which routinely fails with a Microsoft Graph eventual-consistency
+# error ("Resource ... does not exist"); splitting the calls gives Graph
+# time to catch up. Reused on re-runs.
+CLUSTER_APP_NAME="$CLUSTER_NAME-cluster-sp"
+client_id=$(az ad app list --display-name "$CLUSTER_APP_NAME" --query "[0].appId" -o tsv)
+if [ -z "$client_id" ]; then
+  client_id=$(az ad app create --display-name "$CLUSTER_APP_NAME" --query appId -o tsv)
+  sleep 10
+fi
+
+# Disable xtrace around the secret so it never hits logs.
+set +x
+client_secret=$(az ad app credential reset --id "$client_id" --query password -o tsv)
+
+echo "+ az aro create -g $RESOURCE_GROUP -n $CLUSTER_NAME --vnet $VNET_NAME --master-subnet $MASTER_SUBNET --worker-subnet $WORKER_SUBNET --master-vm-size $MASTER_VM_SIZE --worker-vm-size $WORKER_VM_SIZE --worker-count $WORKER_COUNT --client-id $client_id --client-secret *** ${pull_secret_arg[*]:-}"
 az aro create -g "$RESOURCE_GROUP" -n "$CLUSTER_NAME" \
   --vnet "$VNET_NAME" \
   --master-subnet "$MASTER_SUBNET" \
   --worker-subnet "$WORKER_SUBNET" \
+  --master-vm-size "$MASTER_VM_SIZE" \
+  --worker-vm-size "$WORKER_VM_SIZE" \
+  --worker-count "$WORKER_COUNT" \
+  --client-id "$client_id" \
+  --client-secret "$client_secret" \
   "${pull_secret_arg[@]}"
+set -x
 
 # Show how to connect
 console_url=$(az aro show -g "$RESOURCE_GROUP" -n "$CLUSTER_NAME" \
