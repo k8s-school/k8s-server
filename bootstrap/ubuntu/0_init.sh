@@ -12,7 +12,8 @@ pass="changeme"
 
 sudo adduser --disabled-password --gecos "" "$user"
 sudo usermod -a -G docker "$user"
-su - "$user" -c "git clone https://github.com/k8s-school/k8s-server.git"
+# TESTING: pinned to the feature branch; revert to default branch before merging (#1).
+su - "$user" -c "git clone -b 1-otel-flavor-mutualize-provisioning https://github.com/k8s-school/k8s-server.git"
 echo "$user:$pass" | sudo chpasswd
 
 echo "Add sudo access without password"

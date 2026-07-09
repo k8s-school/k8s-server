@@ -69,7 +69,8 @@ until ssh -o "StrictHostKeyChecking no" root@"$ip_address" true 2> /dev/null
     sleep 5
 done
 
-ssh root@"$ip_address" -- "curl  -s https://raw.githubusercontent.com/k8s-school/k8s-server/main/bootstrap/$distrib/0_init.sh | FLAVOR=$FLAVOR bash"
+# TESTING: pinned to the feature branch; revert to /main/ before merging (#1).
+ssh root@"$ip_address" -- "curl  -s https://raw.githubusercontent.com/k8s-school/k8s-server/1-otel-flavor-mutualize-provisioning/bootstrap/$distrib/0_init.sh | FLAVOR=$FLAVOR bash"
 
 # Copy the crc pull secret into the user's home if it exists locally. It is
 # gitignored, so it is absent from the clone that 0_init.sh fetches; crc-setup.sh

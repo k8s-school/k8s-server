@@ -16,7 +16,8 @@ pass="0p&nsh!ft"
 
 adduser "$user"
 su - "$user" -c "git clone https://github.com/k8s-school/openshift-advanced.git"
-su - "$user" -c "git clone https://github.com/k8s-school/k8s-server.git"
+# TESTING: pinned to the feature branch; revert to default branch before merging (#1).
+su - "$user" -c "git clone -b 1-otel-flavor-mutualize-provisioning https://github.com/k8s-school/k8s-server.git"
 su - "$user" -c "echo 'export PATH=/home/$user/bin:\$PATH' >> /home/$user/.bashrc"
 echo "$user:$pass" | chpasswd
 
