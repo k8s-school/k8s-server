@@ -2,6 +2,6 @@ INSTANCE_NAME="k8s"
 # INSTANCE_TYPE="GP1-S"
 # For finops lab
 INSTANCE_TYPE="GP1-M"
-DISTRIBUTION="ubuntu_jammy"
+DISTRIBUTION="ubuntu_noble"
 DISK_SIZE="100GB"
 K8S_USER="k8s0"

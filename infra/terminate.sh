@@ -14,7 +14,9 @@ usage () {
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-. $DIR/env.sh
+# Flavor picked by the operator in conf.sh; source the matching env file.
+. "$DIR/conf.sh"
+. "$DIR/env.$FLAVOR.sh"
 
 delete_ip=false
 while getopts dh opt; do

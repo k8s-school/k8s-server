@@ -8,7 +8,7 @@ $DIR/../install-go.sh
 $DIR/../install-godeps.sh
 $DIR/../upgrade-sysctl.sh
 $DIR/0.1_install_docker.sh
-$DIR/1_addusers.sh
+$DIR/../adduser.sh k8s
 $DIR/../2_setup_home_dirs.sh
 $DIR/crc-setup.sh
 $DIR/crc-start.sh

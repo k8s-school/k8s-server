@@ -6,7 +6,9 @@ set -euo pipefail
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-. $DIR/env.sh
+# Flavor picked by the operator in conf.sh; source the matching env file.
+. "$DIR/conf.sh"
+. "$DIR/env.$FLAVOR.sh"
 
 ip_address=$(scw instance ip list tags.0="$INSTANCE_NAME" | grep "$INSTANCE_NAME" |   awk '{print $2}')
 

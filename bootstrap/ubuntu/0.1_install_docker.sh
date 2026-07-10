@@ -14,6 +14,8 @@ echo \
 sudo apt-get -y update
 sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 sudo usermod -a -G docker $USER
-sleep 10
-sudo systemctl start docker
+# docker.service uses socket activation (-H fd://): the socket unit must be started
+# first, otherwise dockerd fails with "no sockets found via socket activation".
+sudo systemctl enable --now docker.socket
+sudo systemctl enable --now docker.service
 # newgrp docker

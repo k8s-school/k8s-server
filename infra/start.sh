@@ -9,9 +9,53 @@ set -euxo pipefail
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-. $DIR/env.sh
+usage () {
+  echo "Usage: $0 [-h]"
+  echo "Create the training instance on Scaleway for the selected flavor."
+  echo ""
+  echo "The flavor is chosen in $DIR/conf.sh (FLAVOR=...)."
+  echo "Available flavors: k8s openshift otel"
+  echo "  -h: Display this help message"
+  exit "${1:-0}"
+}
+
+while getopts h opt; do
+  case $opt in
+    h) usage 0 ;;
+    \?) usage 1 ;;
+  esac
+done
+
+# Operator picks the flavor in conf.sh; the matching env file is sourced from it.
+. "$DIR/conf.sh"
+if [ -z "${FLAVOR:-}" ]; then
+  echo "ERROR: FLAVOR is not set. Edit $DIR/conf.sh" >&2
+  usage 1
+fi
+if [ ! -f "$DIR/env.$FLAVOR.sh" ]; then
+  echo "ERROR: unknown flavor '$FLAVOR' ($DIR/env.$FLAVOR.sh not found)" >&2
+  usage 1
+fi
+. "$DIR/env.$FLAVOR.sh"
 
 distrib=$(echo $DISTRIBUTION | cut -d "_" -f 1)
+
+# Provision from the branch currently checked out locally, so the remote scripts
+# match the code the operator is running. Fail loudly rather than guessing: a
+# wrong branch would silently provision from the wrong code.
+BRANCH=$(git -C "$DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo)
+if [ -z "$BRANCH" ] || [ "$BRANCH" = "HEAD" ]; then
+  echo "ERROR: could not determine the current git branch from $DIR" >&2
+  echo "       (not a git checkout, or in detached HEAD state)" >&2
+  exit 1
+fi
+# The branch name is interpolated into remote ssh/curl/git command strings;
+# restrict it to safe characters to avoid shell injection and broken URLs.
+if ! printf '%s' "$BRANCH" | grep -qE '^[A-Za-z0-9._/-]+$'; then
+  echo "ERROR: branch name '$BRANCH' contains unsupported characters" >&2
+  echo "       (allowed: letters, digits, and . _ / -)" >&2
+  exit 1
+fi
 
 bootstrap_dir="/home/$K8S_USER/k8s-server/bootstrap"
 
@@ -42,7 +86,7 @@ until ssh -o "StrictHostKeyChecking no" root@"$ip_address" true 2> /dev/null
     sleep 5
 done
 
-ssh root@"$ip_address" -- "curl  -s https://raw.githubusercontent.com/k8s-school/k8s-server/main/bootstrap/$distrib/0_init.sh | bash"
+ssh root@"$ip_address" -- "curl  -s https://raw.githubusercontent.com/k8s-school/k8s-server/$BRANCH/bootstrap/$distrib/0_init.sh | FLAVOR=$FLAVOR BRANCH=$BRANCH bash"
 
 # Copy the crc pull secret into the user's home if it exists locally. It is
 # gitignored, so it is absent from the clone that 0_init.sh fetches; crc-setup.sh
@@ -56,7 +100,7 @@ else
   echo "WARNING: $PULL_SECRET_FILE not found, skipping pull secret copy (crc will prompt for it)"
 fi
 
-ssh root@"$ip_address" -- "su - "$K8S_USER" -c '$bootstrap_dir/$distrib/run_all.sh'"
+ssh root@"$ip_address" -- "su - "$K8S_USER" -c 'FLAVOR=$FLAVOR $bootstrap_dir/$distrib/run_all.sh'"
 
 echo "Connect to the server with below command:"
 echo "ssh k8s0@$ip_address"
