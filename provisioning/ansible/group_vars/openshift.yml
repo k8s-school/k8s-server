@@ -1,0 +1,12 @@
+# OpenShift training: shared k8sN accounts on Fedora, crc-based.
+user_prefix: "k8s"
+user_start: 0
+repo: "openshift-advanced"
+repo_dest: ".ktbx/homefs/openshift-advanced"
+# Fedora has no adm group by default; SELinux relabel handled in participants role.
+extra_groups: ["docker"]
+selinux_relabel: true
+
+per_user_cluster: false
+
+training_action: "crc"

@@ -1,0 +1,65 @@
+---
+# System-wide training tooling in /usr/local/bin. Baked into the image.
+# Replaces bootstrap/install-go.sh, install-godeps.sh and the ktbx installs.
+# All tasks are idempotent (creates=/check before download) so re-running is cheap.
+
+- name: Install base OS packages
+  ansible.builtin.package:
+    name: [git, curl, bash-completion, jq]
+    state: present
+
+# System-wide bash completion for every account (login shells), incl. future
+# users. Replaces the per-user .bashrc lines from the old kubectl install.
+- name: Enable kubectl and helm bash completion for all accounts
+  ansible.builtin.copy:
+    dest: /etc/profile.d/kubectl-helm-completion.sh
+    mode: "0644"
+    content: |
+      # Managed by Ansible (base_tools role).
+      if command -v kubectl >/dev/null 2>&1; then
+        source <(kubectl completion bash)
+      fi
+      if command -v helm >/dev/null 2>&1; then
+        source <(helm completion bash)
+      fi
+
+- name: Install Go
+  ansible.builtin.unarchive:
+    src: "https://go.dev/dl/go{{ go_version }}.linux-amd64.tar.gz"
+    dest: /usr/local
+    remote_src: true
+    creates: /usr/local/go/bin/go
+
+- name: Install kubectl
+  ansible.builtin.get_url:
+    url: "https://dl.k8s.io/release/{{ kubectl_version }}/bin/linux/amd64/kubectl"
+    dest: /usr/local/bin/kubectl
+    mode: "0555"
+
+- name: Install kind
+  ansible.builtin.get_url:
+    url: "https://github.com/kubernetes-sigs/kind/releases/download/{{ kind_version }}/kind-linux-amd64"
+    dest: /usr/local/bin/kind
+    mode: "0555"
+
+- name: Install helm
+  ansible.builtin.shell: |
+    set -euo pipefail
+    curl -fsSL "https://get.helm.sh/helm-{{ helm_version }}-linux-amd64.tar.gz" \
+      | tar -xz -C /tmp linux-amd64/helm
+    install -m 0555 /tmp/linux-amd64/helm /usr/local/bin/helm
+  args:
+    creates: /usr/local/bin/helm
+    executable: /bin/bash # pipefail is a bashism; default /bin/sh (dash) rejects it
+
+# ktbx (k8s-school toolbox) — TODO: pin to a release asset instead of building.
+- name: Install ktbx
+  ansible.builtin.shell: |
+    set -euo pipefail
+    go install github.com/k8s-school/ktbx@latest
+    install -m 0555 "$(go env GOPATH)/bin/ktbx" /usr/local/bin/ktbx
+  args:
+    creates: /usr/local/bin/ktbx
+    executable: /bin/bash # pipefail is a bashism; default /bin/sh (dash) rejects it
+  environment:
+    PATH: "/usr/local/go/bin:{{ ansible_env.PATH }}"

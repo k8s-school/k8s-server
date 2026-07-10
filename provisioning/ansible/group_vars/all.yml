@@ -1,0 +1,17 @@
+# Shared defaults for every flavor. Override per-flavor in group_vars/<flavor>.yml.
+
+# Number of participant accounts (mirrors NB_USER in bootstrap/env.sh).
+nb_users: 30
+
+# Password suffix; per-user password is "<index><participant_password>", matching
+# the chpasswd logic in bootstrap/adduser.sh.
+# TODO: move this to Ansible Vault instead of plaintext.
+participant_password: "s8k202!"
+
+# Pinned tooling versions (baked by base_tools). Keep in sync with bootstrap/.
+kubectl_version: "v1.30.0"
+kind_version: "v0.30.0"
+helm_version: "v3.16.2"
+go_version: "1.23.0"
+
+github_org: "k8s-school"

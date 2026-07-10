@@ -1,0 +1,9 @@
+# Baked INTO the golden image by Packer. Static layer only: anything that does
+# not change between two training sessions. Keep this fast to converge and free
+# of per-session state (no user accounts, no repo clones).
+- name: Bake training image
+  hosts: all
+  become: true
+  roles:
+    - docker
+    - base_tools

@@ -1,0 +1,11 @@
+# Kubernetes training: shared k8sN accounts, k8s0 is the instructor.
+user_prefix: "k8s"
+user_start: 0
+repo: "k8s-school"
+repo_dest: ".ktbx/homefs/k8s-school"
+extra_groups: ["docker", "adm"]
+
+per_user_cluster: false
+
+# Instructor cluster created at session time (participants create their own).
+training_action: "ktbx_create"

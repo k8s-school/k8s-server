@@ -1,0 +1,56 @@
+---
+# docker-ce, installed cleanly and socket-activated.
+# Encodes two bugs hit with the old bash flow:
+#   - never install distro docker.io alongside docker-ce (breaks docker.service)
+#   - start docker.socket before docker.service ("no sockets found" otherwise)
+# For production, consider replacing this role with geerlingguy.docker.
+
+- name: Install docker-ce (Debian/Ubuntu)
+  when: ansible_os_family == "Debian"
+  block:
+    - name: Ensure conflicting distro packages are absent
+      ansible.builtin.apt:
+        name: [docker.io, docker-engine, containerd, runc]
+        state: absent
+
+    - name: Add Docker apt key
+      ansible.builtin.apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        keyring: /etc/apt/keyrings/docker.gpg
+        state: present
+
+    - name: Add Docker apt repository
+      ansible.builtin.apt_repository:
+        repo: "deb [signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        filename: docker
+        state: present
+
+    - name: Install docker-ce packages
+      ansible.builtin.apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+        update_cache: true
+
+- name: Install docker (Fedora/RedHat)
+  when: ansible_os_family == "RedHat"
+  ansible.builtin.dnf:
+    name: [docker, lsb_release]
+    state: present
+
+# Socket first, then the service — the ordering that was missing in bash.
+- name: Enable and start docker.socket
+  ansible.builtin.systemd:
+    name: docker.socket
+    enabled: true
+    state: started
+
+- name: Enable and start docker.service
+  ansible.builtin.systemd:
+    name: docker.service
+    enabled: true
+    state: started

@@ -1,0 +1,75 @@
+---
+# Per-session participant provisioning. Idempotent replacement for
+# bootstrap/adduser.sh + bootstrap/2_setup_home_dirs.sh.
+#
+# Unlike the bash version, homes are NOT wiped on re-run: the git role updates
+# the clone in place, so a re-run is safe and keeps any gcloud login.
+
+- name: Build participant list (name + index)
+  ansible.builtin.set_fact:
+    participants_all: >-
+      {{ participants_all | default([])
+         + [{'name': user_prefix ~ item, 'index': item}] }}
+  loop: "{{ range(user_start | int, (nb_users | int) + 1) | list }}"
+
+- name: Create participant accounts
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    groups: "{{ extra_groups }}"
+    append: true
+    shell: /bin/bash
+    create_home: true
+    # Per-user password "<index><suffix>", matching the old chpasswd logic.
+    password: "{{ (item.index ~ participant_password) | password_hash('sha512') }}"
+  loop: "{{ participants_all }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Ensure base home subdirectories
+  ansible.builtin.file:
+    path: "/home/{{ item.0.name }}/{{ item.1 }}"
+    state: directory
+    owner: "{{ item.0.name }}"
+    group: "{{ item.0.name }}"
+    mode: "0755"
+  loop: "{{ participants_all | product(['.kube', '.ktbx/homefs']) | list }}"
+  loop_control:
+    label: "{{ item.0.name }}/{{ item.1 }}"
+
+- name: Clone / update the training repo for each participant
+  become: true
+  become_user: "{{ item.name }}"
+  ansible.builtin.git:
+    repo: "https://github.com/{{ github_org }}/{{ repo }}"
+    dest: "/home/{{ item.name }}/{{ repo_dest }}"
+    version: "{{ repo_version | default('HEAD') }}"
+    update: true
+  loop: "{{ participants_all }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Set per-user training environment (CLUSTER_NAME + PORT_OFFSET)
+  ansible.builtin.blockinfile:
+    path: "/home/{{ item.name }}/.bashrc"
+    marker: "# {mark} TRAINING ENV"
+    block: |
+      export CLUSTER_NAME={{ item.name }}
+      export PORT_OFFSET={{ item.index * 100 }}
+    owner: "{{ item.name }}"
+    group: "{{ item.name }}"
+  loop: "{{ participants_all }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: per_user_cluster | default(false)
+
+# Fedora only: relabel docker-mounted dirs for SELinux (was chcon in adduser.sh).
+- name: SELinux relabel of participant dirs
+  community.general.sefcontext:
+    target: "/home/{{ item.0.name }}/{{ item.1 }}(/.*)?"
+    setype: svirt_sandbox_file_t
+    state: present
+  loop: "{{ participants_all | product(['.kube', '.ktbx/homefs']) | list }}"
+  loop_control:
+    label: "{{ item.0.name }}/{{ item.1 }}"
+  when: selinux_relabel | default(false)
+  notify: Restorecon homes

@@ -1,0 +1,16 @@
+# OpenTofu
+tofu/.terraform/
+tofu/.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+crash.log
+
+# Packer
+packer/manifest-*.json
+packer/packer_cache/
+
+# Ansible generated inventory (written by tofu)
+ansible/inventory/*.ini
+
+# Vault password files
+*.vault-pass

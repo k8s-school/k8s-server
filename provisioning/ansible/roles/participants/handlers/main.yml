@@ -1,0 +1,4 @@
+---
+- name: Restorecon homes
+  ansible.builtin.command: restorecon -R /home
+  changed_when: false

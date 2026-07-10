@@ -1,0 +1,27 @@
+---
+# Per-session cluster provisioning. Branches on training_action, set per flavor
+# in group_vars/<flavor>.yml. Replaces the tail of bootstrap/*/run_all.sh.
+
+- name: Instructor cluster via ktbx (k8s flavor)
+  when: training_action == "ktbx_create"
+  become: true
+  become_user: "{{ user_prefix }}0"
+  ansible.builtin.command: ktbx create
+  args:
+    creates: "/home/{{ user_prefix }}0/.kube/config"
+
+- name: Install helm chart deps only (otel flavor)
+  when: training_action == "helm_only"
+  become: true
+  ansible.builtin.command: ktbx install helm
+  changed_when: false
+  # Students create their own cluster with the otel repo's up.sh, so nothing
+  # cluster-side is provisioned here.
+
+- name: Crc setup and start (openshift flavor)
+  when: training_action == "crc"
+  ansible.builtin.debug:
+    msg: >-
+      TODO: port bootstrap/fedora/crc-setup.sh + crc-start.sh here.
+      Needs the pull secret (currently copied by infra/start.sh) delivered via
+      Ansible Vault or an operator-provided var.

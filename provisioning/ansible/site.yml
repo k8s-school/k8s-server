@@ -1,0 +1,18 @@
+# Run per session against a booted VM (make configure FLAVOR=...).
+# Dynamic layer: participant accounts, fresh repo clones, training clusters.
+# Also runs docker/base_tools as a safety net when booting the fallback image
+# (image_id empty) — they are no-ops on a properly baked image.
+- name: Configure training session
+  # flavor is provided at runtime via -e (see Makefile); default keeps lint's
+  # offline syntax-check happy.
+  hosts: "{{ flavor | default('all') }}"
+  become: true
+  roles:
+    - role: docker
+      tags: [base]
+    - role: base_tools
+      tags: [base]
+    - role: participants
+      tags: [session]
+    - role: training
+      tags: [session]

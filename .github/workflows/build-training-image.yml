@@ -1,0 +1,110 @@
+name: Build training image
+
+# Builds the golden Scaleway image with Packer, from GitHub's runners instead of
+# the operator's laptop. The heavy downloads happen on the short-lived Scaleway
+# build instance (fast datacenter network), so a slow operator connection is
+# irrelevant. The resulting image is stored as a Scaleway custom image and
+# referenced by OpenTofu via image_id.
+#
+# Required repository secrets (Settings > Secrets and variables > Actions):
+#   SCW_ACCESS_KEY, SCW_SECRET_KEY, SCW_DEFAULT_PROJECT_ID
+
+on:
+  workflow_dispatch:
+    inputs:
+      flavor:
+        description: Training flavor to bake
+        type: choice
+        options: [otel, k8s, openshift]
+        default: otel
+      update_tfvars:
+        description: Open a PR bumping image_id in tofu/envs/<flavor>.tfvars
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: provisioning
+    env:
+      SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
+      SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
+      SCW_DEFAULT_PROJECT_ID: ${{ secrets.SCW_DEFAULT_PROJECT_ID }}
+      FLAVOR: ${{ inputs.flavor }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-packer@v3
+        with:
+          version: "1.11.2"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Ansible
+        run: |
+          pip install ansible-core
+          ansible-galaxy collection install community.general
+
+      - name: Packer init
+        working-directory: provisioning/packer
+        run: packer init .
+
+      - name: Packer build
+        working-directory: provisioning/packer
+        run: packer build -var "flavor=${FLAVOR}" .
+
+      - name: Extract image ID
+        id: image
+        working-directory: provisioning/packer
+        run: |
+          # Scaleway artifact_id is "<zone>:<image-uuid>".
+          image_id=$(jq -r '.builds[-1].artifact_id | split(":")[1]' "manifest-${FLAVOR}.json")
+          echo "image_id=$image_id" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Built \`${FLAVOR}\` image"
+            echo ""
+            echo "| Field | Value |"
+            echo "|-------|-------|"
+            echo "| flavor | \`${FLAVOR}\` |"
+            echo "| image_id | \`${image_id}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload manifest artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: packer-manifest-${{ inputs.flavor }}
+          path: provisioning/packer/manifest-${{ inputs.flavor }}.json
+
+      - name: Bump image_id in tfvars
+        if: ${{ inputs.update_tfvars }}
+        working-directory: provisioning
+        run: |
+          tfvars="tofu/envs/${FLAVOR}.tfvars"
+          # Replace the (possibly commented) image_id line with the new value.
+          if grep -qE '^\s*#?\s*image_id' "$tfvars"; then
+            sed -i -E "s|^\s*#?\s*image_id.*|image_id            = \"${{ steps.image.outputs.image_id }}\"|" "$tfvars"
+          else
+            echo "image_id            = \"${{ steps.image.outputs.image_id }}\"" >> "$tfvars"
+          fi
+
+      - name: Open PR with the new image_id
+        if: ${{ inputs.update_tfvars }}
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "Bump ${{ inputs.flavor }} image_id to freshly built image"
+          title: "Update ${{ inputs.flavor }} training image_id"
+          body: |
+            Automated by the *Build training image* workflow.
+
+            New Scaleway image for flavor `${{ inputs.flavor }}`:
+            `${{ steps.image.outputs.image_id }}`
+          branch: image-bump/${{ inputs.flavor }}
+          add-paths: provisioning/tofu/envs/${{ inputs.flavor }}.tfvars
