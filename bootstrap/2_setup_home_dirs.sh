@@ -12,7 +12,7 @@ FLAVOR="${FLAVOR:-k8s}"
 case "$FLAVOR" in
   k8s)       prefix="k8s";     repo="k8s-school";        dest=".ktbx/homefs/k8s-school" ;;
   openshift) prefix="k8s";     repo="openshift-advanced"; dest=".ktbx/homefs/openshift-advanced" ;;
-  otel)      prefix="student"; repo="otel";              dest="otel" ;;
+  otel)      prefix="student"; repo="otel";              dest=".ktbx/homefs/otel" ;;
   *) echo "ERROR: unknown FLAVOR '$FLAVOR'" >&2; exit 1 ;;
 esac
 

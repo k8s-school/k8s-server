@@ -16,8 +16,17 @@ pass="0p&nsh!ft"
 
 adduser "$user"
 su - "$user" -c "git clone https://github.com/k8s-school/openshift-advanced.git"
-# TESTING: pinned to the feature branch; revert to default branch before merging (#1).
-su - "$user" -c "git clone -b 1-otel-flavor-mutualize-provisioning https://github.com/k8s-school/k8s-server.git"
+# BRANCH is propagated from the operator's local checkout by infra/start.sh.
+if [ -z "${BRANCH:-}" ]; then
+  echo "ERROR: BRANCH is not set" >&2
+  exit 1
+fi
+# BRANCH is interpolated into the git command string; restrict it to safe chars.
+if ! printf '%s' "$BRANCH" | grep -qE '^[A-Za-z0-9._/-]+$'; then
+  echo "ERROR: branch name '$BRANCH' contains unsupported characters" >&2
+  exit 1
+fi
+su - "$user" -c "git clone -b $BRANCH https://github.com/k8s-school/k8s-server.git"
 su - "$user" -c "echo 'export PATH=/home/$user/bin:\$PATH' >> /home/$user/.bashrc"
 echo "$user:$pass" | chpasswd
 

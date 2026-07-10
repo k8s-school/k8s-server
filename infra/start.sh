@@ -40,6 +40,23 @@ fi
 
 distrib=$(echo $DISTRIBUTION | cut -d "_" -f 1)
 
+# Provision from the branch currently checked out locally, so the remote scripts
+# match the code the operator is running. Fail loudly rather than guessing: a
+# wrong branch would silently provision from the wrong code.
+BRANCH=$(git -C "$DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo)
+if [ -z "$BRANCH" ] || [ "$BRANCH" = "HEAD" ]; then
+  echo "ERROR: could not determine the current git branch from $DIR" >&2
+  echo "       (not a git checkout, or in detached HEAD state)" >&2
+  exit 1
+fi
+# The branch name is interpolated into remote ssh/curl/git command strings;
+# restrict it to safe characters to avoid shell injection and broken URLs.
+if ! printf '%s' "$BRANCH" | grep -qE '^[A-Za-z0-9._/-]+$'; then
+  echo "ERROR: branch name '$BRANCH' contains unsupported characters" >&2
+  echo "       (allowed: letters, digits, and . _ / -)" >&2
+  exit 1
+fi
+
 bootstrap_dir="/home/$K8S_USER/k8s-server/bootstrap"
 
 if scw instance server list | grep $INSTANCE_NAME; then
@@ -69,8 +86,7 @@ until ssh -o "StrictHostKeyChecking no" root@"$ip_address" true 2> /dev/null
     sleep 5
 done
 
-# TESTING: pinned to the feature branch; revert to /main/ before merging (#1).
-ssh root@"$ip_address" -- "curl  -s https://raw.githubusercontent.com/k8s-school/k8s-server/1-otel-flavor-mutualize-provisioning/bootstrap/$distrib/0_init.sh | FLAVOR=$FLAVOR bash"
+ssh root@"$ip_address" -- "curl  -s https://raw.githubusercontent.com/k8s-school/k8s-server/$BRANCH/bootstrap/$distrib/0_init.sh | FLAVOR=$FLAVOR BRANCH=$BRANCH bash"
 
 # Copy the crc pull secret into the user's home if it exists locally. It is
 # gitignored, so it is absent from the clone that 0_init.sh fetches; crc-setup.sh

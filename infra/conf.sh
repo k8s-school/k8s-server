@@ -7,4 +7,4 @@
 #   openshift  Fedora, crc (OpenShift training)
 #   otel       Ubuntu, docker/kind/ktbx + helm, one account+cluster per student
 #              (OpenTelemetry training, provisioned via the otel repo)
-FLAVOR=k8s
+FLAVOR=otel
