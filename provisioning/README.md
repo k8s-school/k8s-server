@@ -12,35 +12,31 @@ Splits the work along its natural seam:
 The three flavors (`k8s`, `openshift`, `otel`) are selected with a single
 variable, mirroring `infra/conf.sh`.
 
-## One-time: bake the image
+## Usage
+
+Everything goes through `make`. Run it with no argument for the authoritative,
+self-documenting list of targets:
 
 ```bash
-cd packer
-export SCW_DEFAULT_PROJECT_ID=... SCW_ACCESS_KEY=... SCW_SECRET_KEY=...
-packer init .
-packer build -var flavor=otel .
-# -> prints the built image ID; put it in tofu/envs/<flavor>.tfvars (image_id)
+make                    # or: make help
 ```
 
-Re-bake only when the static tooling changes (new docker/kind/helm version).
-
-## Each session: boot + configure
+Pick the flavor with `FLAVOR=` (`k8s` | `openshift` | `otel`, default `otel`).
+Scaleway credentials come from the environment, like the `scw` CLI:
 
 ```bash
-make up FLAVOR=otel      # tofu apply + writes the ansible inventory
-make configure FLAVOR=otel   # ansible-playbook site.yml (users, repos, clusters)
-make ssh FLAVOR=otel     # ssh to the instructor account
-make down FLAVOR=otel     # tofu destroy the VM (keeps the reserved IP)
+export SCW_ACCESS_KEY=... SCW_SECRET_KEY=... SCW_DEFAULT_PROJECT_ID=...
 ```
 
-Full teardown (stop paying for anything between sessions):
+Typical lifecycle:
 
-```bash
-make down FLAVOR=otel          # destroy the VM
-make delete-image FLAVOR=otel  # delete the Scaleway image + snapshot
-make delete-ip FLAVOR=otel     # release the reserved floating IP
-```
-
+1. **Once** (or when the tooling changes): `make create-image` bakes the golden
+   image and prints its ID → set it as `image_id` in `tofu/envs/<flavor>.tfvars`
+   (the GHA workflow can do this via an auto-PR).
+2. **Each session**: `make provision` (boots the VM + configures accounts), then
+   `make ssh`.
+3. **Teardown**: `make down`, then `make delete-image` / `make delete-ip` to stop
+   paying for anything between sessions.
 
 ## Layout
 
