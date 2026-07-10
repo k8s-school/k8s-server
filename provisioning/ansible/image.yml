@@ -4,6 +4,9 @@
 - name: Bake training image
   hosts: all
   become: true
+  vars:
+    # Silence the interpreter-discovery warning (packer runs its own ansible.cfg).
+    ansible_python_interpreter: auto_silent
   roles:
     - docker
     - base_tools

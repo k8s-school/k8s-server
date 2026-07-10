@@ -7,6 +7,8 @@
   # offline syntax-check happy.
   hosts: "{{ flavor | default('all') }}"
   become: true
+  vars:
+    ansible_python_interpreter: auto_silent
   roles:
     - role: docker
       tags: [base]

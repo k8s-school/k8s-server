@@ -6,23 +6,28 @@
 # For production, consider replacing this role with geerlingguy.docker.
 
 - name: Install docker-ce (Debian/Ubuntu)
-  when: ansible_os_family == "Debian"
+  when: ansible_facts['os_family'] == "Debian"
   block:
     - name: Ensure conflicting distro packages are absent
       ansible.builtin.apt:
         name: [docker.io, docker-engine, containerd, runc]
         state: absent
 
-    - name: Add Docker apt key
-      ansible.builtin.apt_key:
-        url: https://download.docker.com/linux/ubuntu/gpg
-        keyring: /etc/apt/keyrings/docker.gpg
+    # deb822_repository needs the python3-debian library on the target.
+    - name: Ensure python3-debian is present
+      ansible.builtin.apt:
+        name: python3-debian
         state: present
+        update_cache: true
 
-    - name: Add Docker apt repository
-      ansible.builtin.apt_repository:
-        repo: "deb [signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
-        filename: docker
+    - name: Add Docker apt repository (deb822, fetches the signing key)
+      ansible.builtin.deb822_repository:
+        name: docker
+        types: [deb]
+        uris: "https://download.docker.com/linux/ubuntu"
+        suites: ["{{ ansible_facts['distribution_release'] }}"]
+        components: [stable]
+        signed_by: "https://download.docker.com/linux/ubuntu/gpg"
         state: present
 
     - name: Install docker-ce packages
@@ -37,7 +42,7 @@
         update_cache: true
 
 - name: Install docker (Fedora/RedHat)
-  when: ansible_os_family == "RedHat"
+  when: ansible_facts['os_family'] == "RedHat"
   ansible.builtin.dnf:
     name: [docker, lsb_release]
     state: present

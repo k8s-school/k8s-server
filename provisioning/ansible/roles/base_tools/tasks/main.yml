@@ -62,4 +62,4 @@
     creates: /usr/local/bin/ktbx
     executable: /bin/bash # pipefail is a bashism; default /bin/sh (dash) rejects it
   environment:
-    PATH: "/usr/local/go/bin:{{ ansible_env.PATH }}"
+    PATH: "/usr/local/go/bin:{{ ansible_facts['env'].PATH }}"
