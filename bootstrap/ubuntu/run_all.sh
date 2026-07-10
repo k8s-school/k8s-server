@@ -12,6 +12,11 @@ FLAVOR="${FLAVOR:-k8s}"
 $DIR/../install-go.sh
 $DIR/../install-godeps.sh
 
+$DIR/../upgrade-sysctl.sh
+# Docker must be installed before the participant accounts are created: adduser.sh
+# adds them to the 'docker' group, which only exists once docker is installed.
+$DIR/0.1_install_docker.sh
+
 # Participant accounts (k8sN for k8s, studentN for otel) + per-user home/repo.
 if [ "$FLAVOR" = "otel" ]; then
   $DIR/../adduser.sh student
@@ -19,9 +24,6 @@ else
   $DIR/../adduser.sh k8s
 fi
 $DIR/../2_setup_home_dirs.sh
-
-$DIR/../upgrade-sysctl.sh
-$DIR/0.1_install_docker.sh
 
 if [ "$FLAVOR" = "otel" ]; then
   # otel: helm for the demo; each student creates their own cluster via `up.sh -c`.
