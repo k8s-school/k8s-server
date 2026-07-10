@@ -7,7 +7,7 @@ ANSIBLE_DIR := ansible
 TFVARS := envs/$(FLAVOR).tfvars
 INVENTORY := $(ANSIBLE_DIR)/inventory/$(FLAVOR).ini
 
-.PHONY: init up down configure provision ssh ip fmt validate delete-image
+.PHONY: init up down configure provision ssh ip fmt validate delete-image delete-ip
 
 init:
 	cd $(TOFU_DIR) && tofu init
@@ -35,6 +35,18 @@ delete-image:
 	if [ -z "$$img" ]; then echo "No image_id set in $(TFVARS), nothing to delete"; exit 0; fi; \
 	echo "Deleting Scaleway image $$img (with snapshot)"; \
 	scw instance image delete "$$img" with-snapshots=true
+
+# Release the reserved (floating) IP for this flavor, found by its tag. main.tf
+# marks the IP with prevent_destroy so `make down` keeps it; use this only for a
+# full teardown. Afterwards `tofu apply` will allocate a fresh IP (state drift is
+# reconciled automatically), so the ssh target changes.
+delete-ip:
+	@name=$$(grep -E '^[[:space:]]*instance_name' $(TOFU_DIR)/$(TFVARS) | sed -E 's/.*"([^"]+)".*/\1/'); \
+	if [ -z "$$name" ]; then echo "No instance_name in $(TFVARS)"; exit 1; fi; \
+	ip_id=$$(scw instance ip list tags.0="$$name" | grep -w "$$name" | awk '{print $$1}'); \
+	if [ -z "$$ip_id" ]; then echo "No reserved IP tagged $$name, nothing to delete"; exit 0; fi; \
+	echo "Deleting reserved IP $$ip_id (tag $$name)"; \
+	scw instance ip delete "$$ip_id"
 
 ip:
 	cd $(TOFU_DIR) && tofu output -raw public_ip

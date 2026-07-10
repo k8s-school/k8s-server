@@ -30,8 +30,17 @@ Re-bake only when the static tooling changes (new docker/kind/helm version).
 make up FLAVOR=otel      # tofu apply + writes the ansible inventory
 make configure FLAVOR=otel   # ansible-playbook site.yml (users, repos, clusters)
 make ssh FLAVOR=otel     # ssh to the instructor account
-make down FLAVOR=otel     # tofu destroy (keeps the reserved IP)
+make down FLAVOR=otel     # tofu destroy the VM (keeps the reserved IP)
 ```
+
+Full teardown (stop paying for anything between sessions):
+
+```bash
+make down FLAVOR=otel          # destroy the VM
+make delete-image FLAVOR=otel  # delete the Scaleway image + snapshot
+make delete-ip FLAVOR=otel     # release the reserved floating IP
+```
+
 
 ## Layout
 
