@@ -34,6 +34,10 @@ build {
   # later via ansible/site.yml.
   provisioner "ansible" {
     playbook_file = "../ansible/image.yml"
+    # Without this the plugin defaults ansible_user to the *local* user running
+    # packer (e.g. fjammes); the connection is actually root, so Ansible's
+    # remote_tmp resolves to a literal `~fjammes` dir baked under /root. Pin it.
+    user = "root"
     extra_arguments = [
       "-e", "flavor=${var.flavor}",
       "--scp-extra-args", "'-O'", # OpenSSH 9+ compatibility
