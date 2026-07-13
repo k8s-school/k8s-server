@@ -3,6 +3,7 @@
 # Run `make` (or `make help`) to list the available targets.
 FLAVOR ?= otel
 ZONE ?= fr-par-1
+SSH_USER ?= root
 TOFU_DIR := tofu
 ANSIBLE_DIR := ansible
 TFVARS := envs/$(FLAVOR).tfvars
@@ -87,8 +88,8 @@ delete-ip: ## Release the reserved (floating) IP for this flavor
 ip: ## Print the instance public IP
 	cd $(TOFU_DIR) && tofu output -raw public_ip
 
-ssh: ## SSH to the instructor account (k8s0)
-	ssh k8s0@$$(cd $(TOFU_DIR) && tofu output -raw public_ip)
+ssh: ## SSH to the VM as root (admin access via the operator key). Override user: make ssh SSH_USER=student1
+	ssh $(SSH_USER)@$$(cd $(TOFU_DIR) && tofu output -raw public_ip)
 
 fmt: ## Format the OpenTofu and Packer files
 	cd $(TOFU_DIR) && tofu fmt
