@@ -66,8 +66,11 @@ configure: ## Run Ansible: participant accounts, repo clones, training clusters
 
 provision: up configure ## Full session bring-up (up + configure)
 
-down: ## Destroy the VM (keeps the reserved IP)
-	cd $(TOFU_DIR) && tofu destroy -var-file=$(TFVARS) -auto-approve
+down: ## Destroy the VM only (keeps the reserved IP for the next session)
+	@# A blanket `tofu destroy` would try to delete the IP too, which has
+	@# prevent_destroy set. Target the server so the IP (and its state) survive;
+	@# null_resource.wait_for_ssh is torn down with it as a dependent.
+	cd $(TOFU_DIR) && tofu destroy -target=scaleway_instance_server.main -var-file=$(TFVARS) -auto-approve
 
 delete-image: ## Delete every Scaleway image (+ snapshot) tagged flavor=<FLAVOR>
 	@ids=$$($(IMAGE_IDS)); \
