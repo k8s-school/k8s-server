@@ -13,9 +13,10 @@ terraform {
   }
 }
 
-# Credentials come from the environment, same as the scw CLI:
-#   SCW_ACCESS_KEY, SCW_SECRET_KEY, SCW_DEFAULT_PROJECT_ID, SCW_DEFAULT_ORGANIZATION_ID
-provider "scaleway" {
-  zone   = var.zone
-  region = var.region
-}
+# Credentials, zone and region come from the environment / scw profile, same as
+# the scw CLI: SCW_ACCESS_KEY, SCW_SECRET_KEY, SCW_DEFAULT_PROJECT_ID,
+# SCW_DEFAULT_ZONE, SCW_DEFAULT_REGION (or ~/.config/scw/config.yaml).
+# Resources still pin their own zone via var.zone, so this stays deterministic.
+# Leaving the block empty avoids the "multiple variable sources" warning when a
+# scw profile is also present.
+provider "scaleway" {}
