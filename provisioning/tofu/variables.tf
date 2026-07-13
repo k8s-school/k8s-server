@@ -27,8 +27,10 @@ variable "instance_type" {
 variable "image_id" {
   description = <<-EOT
     Baked image built by Packer (packer build -var flavor=<flavor>).
-    Leave empty to boot the raw distro label in `fallback_image` instead
-    (slower: Ansible then has to install everything at session time).
+    Normally left empty and injected by `make up`, which resolves it from the
+    image's `flavor=<flavor>` tag. Set it only to pin a specific image by hand
+    (tofu apply -var image_id=<id>). Empty boots the raw `fallback_image`
+    instead (slower: Ansible installs everything at session time).
   EOT
   type        = string
   default     = ""

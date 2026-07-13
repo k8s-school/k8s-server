@@ -20,6 +20,9 @@ source "scaleway" "training" {
   ssh_username    = "root"
   # Timestamped so old images are easy to identify and prune.
   image_name = "k8s-training-${var.flavor}-{{timestamp}}"
+  # Stable label used by `make up` to find THIS flavor's image (no more copying
+  # image_id around). The timestamped name still lets you eyeball/prune old ones.
+  tags = ["k8s-training", "flavor=${var.flavor}"]
 }
 
 build {

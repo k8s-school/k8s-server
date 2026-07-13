@@ -3,8 +3,8 @@ name: Build training image
 # Builds the golden Scaleway image with Packer, from GitHub's runners instead of
 # the operator's laptop. The heavy downloads happen on the short-lived Scaleway
 # build instance (fast datacenter network), so a slow operator connection is
-# irrelevant. The resulting image is stored as a Scaleway custom image and
-# referenced by OpenTofu via image_id.
+# irrelevant. The resulting image is stored as a Scaleway custom image tagged
+# `flavor=<flavor>`; `make up` finds it by that tag (no image_id to wire up).
 #
 # Required repository secrets (Settings > Secrets and variables > Actions):
 #   SCW_ACCESS_KEY, SCW_SECRET_KEY, SCW_DEFAULT_PROJECT_ID
@@ -17,14 +17,9 @@ on:
         type: choice
         options: [otel, k8s, openshift]
         default: otel
-      update_tfvars:
-        description: Open a PR bumping image_id in tofu/envs/<flavor>.tfvars
-        type: boolean
-        default: true
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
   build:
@@ -61,13 +56,21 @@ jobs:
         working-directory: provisioning/packer
         run: packer build -var "flavor=${FLAVOR}" .
 
-      - name: Extract image ID
-        id: image
+      - name: Install Scaleway CLI
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/scaleway/scaleway-cli/master/scripts/get.sh | sh
+          scw version
+
+      - name: Report image and warn on duplicate tags
         working-directory: provisioning/packer
         run: |
           # Scaleway artifact_id is "<zone>:<image-uuid>".
           image_id=$(jq -r '.builds[-1].artifact_id | split(":")[1]' "manifest-${FLAVOR}.json")
-          echo "image_id=$image_id" >> "$GITHUB_OUTPUT"
+          # Count how many images now carry this flavor's tag: `make up` needs
+          # exactly one, so surface duplicates here rather than at session time.
+          ids=$(scw instance image list zone=fr-par-1 -o json \
+            | jq -r --arg t "flavor=${FLAVOR}" '.[] | select((.tags // []) | index($t)) | .id')
+          n=$(printf '%s\n' "$ids" | grep -c . || true)
           {
             echo "## Built \`${FLAVOR}\` image"
             echo ""
@@ -75,36 +78,16 @@ jobs:
             echo "|-------|-------|"
             echo "| flavor | \`${FLAVOR}\` |"
             echo "| image_id | \`${image_id}\` |"
+            echo "| images tagged \`flavor=${FLAVOR}\` | ${n} |"
+            echo ""
+            echo "Found by \`make up\` via the \`flavor=${FLAVOR}\` tag — no tfvars change needed."
           } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$n" -gt 1 ]; then
+            echo "::warning::${n} images are tagged flavor=${FLAVOR}; 'make up' needs exactly one. Prune stale images with 'make delete-image FLAVOR=${FLAVOR}' or 'scw instance image delete <id> with-snapshots=true'."
+          fi
 
       - name: Upload manifest artifact
         uses: actions/upload-artifact@v4
         with:
           name: packer-manifest-${{ inputs.flavor }}
           path: provisioning/packer/manifest-${{ inputs.flavor }}.json
-
-      - name: Bump image_id in tfvars
-        if: ${{ inputs.update_tfvars }}
-        working-directory: provisioning
-        run: |
-          tfvars="tofu/envs/${FLAVOR}.tfvars"
-          # Replace the (possibly commented) image_id line with the new value.
-          if grep -qE '^\s*#?\s*image_id' "$tfvars"; then
-            sed -i -E "s|^\s*#?\s*image_id.*|image_id            = \"${{ steps.image.outputs.image_id }}\"|" "$tfvars"
-          else
-            echo "image_id            = \"${{ steps.image.outputs.image_id }}\"" >> "$tfvars"
-          fi
-
-      - name: Open PR with the new image_id
-        if: ${{ inputs.update_tfvars }}
-        uses: peter-evans/create-pull-request@v6
-        with:
-          commit-message: "Bump ${{ inputs.flavor }} image_id to freshly built image"
-          title: "Update ${{ inputs.flavor }} training image_id"
-          body: |
-            Automated by the *Build training image* workflow.
-
-            New Scaleway image for flavor `${{ inputs.flavor }}`:
-            `${{ steps.image.outputs.image_id }}`
-          branch: image-bump/${{ inputs.flavor }}
-          add-paths: provisioning/tofu/envs/${{ inputs.flavor }}.tfvars
