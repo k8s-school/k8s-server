@@ -12,7 +12,7 @@
     create_home: true
     # Optional password so the trainer can log in over SSH; sudo is passwordless
     # regardless (see the sudoers task below).
-    password: "{{ (trainer_password | password_hash('sha512')) if trainer_password else omit }}"
+    password: "{{ trainer_password | password_hash('sha512', password_salt) if trainer_password else omit }}"
 
 - name: Grant the trainer passwordless sudo
   ansible.builtin.copy:
@@ -20,6 +20,17 @@
     mode: "0440"
     content: "{{ trainer_user }} ALL=(ALL) NOPASSWD:ALL\n"
     validate: "visudo -cf %s"
+
+# Pre-create the become_user's tmp dir so the git task (run as trainer) doesn't
+# race Ansible into creating ~/.ansible/tmp on the fly (the 0700 remote_tmp
+# WARNING).
+- name: Ensure the trainer Ansible tmp dir exists
+  ansible.builtin.file:
+    path: "/home/{{ trainer_user }}/.ansible/tmp"
+    state: directory
+    owner: "{{ trainer_user }}"
+    group: "{{ trainer_user }}"
+    mode: "0700"
 
 - name: Clone / update the trainer repo
   become: true

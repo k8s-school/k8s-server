@@ -20,7 +20,7 @@
     shell: /bin/bash
     create_home: true
     # Per-user password "<index><suffix>", matching the old chpasswd logic.
-    password: "{{ (item.index ~ participant_password) | password_hash('sha512') }}"
+    password: "{{ (item.index ~ participant_password) | password_hash('sha512', password_salt) }}"
   loop: "{{ participants_all }}"
   loop_control:
     label: "{{ item.name }}"

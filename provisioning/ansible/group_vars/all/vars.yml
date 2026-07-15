@@ -9,6 +9,10 @@ nb_users: 30
 # the chpasswd logic in bootstrap/adduser.sh. Value is vaulted (see vault.yml).
 participant_password: "{{ vault_participant_password }}"
 
+# Fixed salt for password_hash() so account passwords hash identically on every
+# run (idempotent). Vaulted alongside the passwords.
+password_salt: "{{ vault_password_salt }}"
+
 # Pinned tooling versions (baked by base_tools). Keep in sync with bootstrap/.
 kubectl_version: "v1.30.0"
 kind_version: "v0.30.0"
