@@ -3,6 +3,8 @@ user_prefix: "k8s"
 user_start: 0
 repo: "openshift-advanced"
 repo_dest: ".ktbx/homefs/openshift-advanced"
+# Trainer gets the same advanced course repo (k8s-school/openshift-advanced).
+trainer_repo: "openshift-advanced"
 # Fedora has no adm group by default; SELinux relabel handled in participants role.
 extra_groups: ["docker"]
 selinux_relabel: true

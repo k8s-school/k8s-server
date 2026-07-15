@@ -1,0 +1,27 @@
+# Shared defaults for every flavor. Override per-flavor in group_vars/<flavor>.yml.
+# Secrets live encrypted in vault.yml (same directory); the vault_* vars are
+# referenced from here so playbooks/roles only ever see the friendly names.
+
+# Number of participant accounts (mirrors NB_USER in bootstrap/env.sh).
+nb_users: 30
+
+# Password suffix; per-user password is "<index><participant_password>", matching
+# the chpasswd logic in bootstrap/adduser.sh. Value is vaulted (see vault.yml).
+participant_password: "{{ vault_participant_password }}"
+
+# Pinned tooling versions (baked by base_tools). Keep in sync with bootstrap/.
+kubectl_version: "v1.30.0"
+kind_version: "v0.30.0"
+helm_version: "v3.16.2"
+go_version: "1.23.0"
+
+github_org: "k8s-school"
+
+# Shared trainer account (created on every flavor by the trainer role):
+# passwordless sudo + docker access. trainer_repo is set per flavor.
+trainer_user: "trainer"
+# Just docker here; adm is absent on Fedora (openshift). sudo comes from the
+# dedicated sudoers.d drop-in, not group membership.
+trainer_groups: ["docker"]
+# Login password for the trainer (vaulted). sudo is passwordless independently.
+trainer_password: "{{ vault_trainer_password }}"

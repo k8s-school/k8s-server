@@ -3,6 +3,8 @@ user_prefix: "student"
 user_start: 1
 repo: "otel"
 repo_dest: ".ktbx/homefs/otel"
+# Trainer gets the same repo (k8s-school/otel).
+trainer_repo: "otel"
 extra_groups: ["docker", "adm"]
 
 # Each student gets CLUSTER_NAME + PORT_OFFSET in their .bashrc, and creates

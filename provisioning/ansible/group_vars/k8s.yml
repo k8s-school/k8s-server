@@ -3,6 +3,8 @@ user_prefix: "k8s"
 user_start: 0
 repo: "k8s-school"
 repo_dest: ".ktbx/homefs/k8s-school"
+# Trainer gets the advanced course repo (k8s-school/k8s-advanced).
+trainer_repo: "k8s-advanced"
 extra_groups: ["docker", "adm"]
 
 per_user_cluster: false

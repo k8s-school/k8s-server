@@ -53,6 +53,7 @@ provisioning/
         ├── docker/       # docker-ce, socket-activated (baked)
         ├── base_tools/   # go, kind, kubectl, helm, ktbx (baked)
         ├── participants/ # accounts, home, repo clone, bashrc (per-session)
+        ├── trainer/      # shared trainer account: sudo + docker + repo (per-session)
         └── training/     # ktbx create / helm / crc (per-session)
 ```
 

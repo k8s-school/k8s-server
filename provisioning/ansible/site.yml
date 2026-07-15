@@ -16,5 +16,7 @@
       tags: [base]
     - role: participants
       tags: [session]
+    - role: trainer
+      tags: [session]
     - role: training
       tags: [session]

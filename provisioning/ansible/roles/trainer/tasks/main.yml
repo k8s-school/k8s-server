@@ -1,0 +1,31 @@
+---
+# Per-session trainer account. One shared 'trainer' user across every flavor,
+# with passwordless sudo and docker access, plus a clone of the flavor's
+# advanced repo (k8s-advanced / openshift-advanced / otel) in its home.
+
+- name: Create the trainer account
+  ansible.builtin.user:
+    name: "{{ trainer_user }}"
+    groups: "{{ trainer_groups }}"
+    append: true
+    shell: /bin/bash
+    create_home: true
+    # Optional password so the trainer can log in over SSH; sudo is passwordless
+    # regardless (see the sudoers task below).
+    password: "{{ (trainer_password | password_hash('sha512')) if trainer_password else omit }}"
+
+- name: Grant the trainer passwordless sudo
+  ansible.builtin.copy:
+    dest: "/etc/sudoers.d/{{ trainer_user }}"
+    mode: "0440"
+    content: "{{ trainer_user }} ALL=(ALL) NOPASSWD:ALL\n"
+    validate: "visudo -cf %s"
+
+- name: Clone / update the trainer repo
+  become: true
+  become_user: "{{ trainer_user }}"
+  ansible.builtin.git:
+    repo: "https://github.com/{{ github_org }}/{{ trainer_repo }}.git"
+    dest: "/home/{{ trainer_user }}/{{ trainer_repo }}"
+    version: "{{ trainer_repo_version | default('HEAD') }}"
+    update: true
