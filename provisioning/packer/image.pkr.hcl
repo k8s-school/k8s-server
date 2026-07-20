@@ -41,6 +41,11 @@ build {
     extra_arguments = [
       "-e", "flavor=${var.flavor}",
       "--scp-extra-args", "'-O'", # OpenSSH 9+ compatibility
+      # Packer runs ansible-playbook from packer/ (not ansible/), so it never
+      # loads ansible/ansible.cfg and its vault_password_file. hosts:all here
+      # auto-loads group_vars/all/vault.yml (encrypted), so pass the key
+      # explicitly or the bake dies with "no vault secrets found".
+      "--vault-password-file", "../ansible/.vault-pass",
     ]
   }
 

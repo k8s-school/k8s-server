@@ -16,6 +16,11 @@
     mode: "0644"
     content: |
       # Managed by Ansible (base_tools role).
+      # Bash-only (process substitution). /etc/profile.d/*.sh is also sourced by
+      # POSIX /bin/sh logins (e.g. xrdp's dash startwm.sh); without this guard the
+      # `<(...)` below is a syntax error that aborts the whole shell — which is
+      # what turned the Guacamole XFCE session into a black screen.
+      [ -n "$BASH_VERSION" ] || return 0
       if command -v kubectl >/dev/null 2>&1; then
         source <(kubectl completion bash)
       fi
@@ -30,29 +35,8 @@
     remote_src: true
     creates: /usr/local/go/bin/go
 
-- name: Install kubectl
-  ansible.builtin.get_url:
-    url: "https://dl.k8s.io/release/{{ kubectl_version }}/bin/linux/amd64/kubectl"
-    dest: /usr/local/bin/kubectl
-    mode: "0555"
-
-- name: Install kind
-  ansible.builtin.get_url:
-    url: "https://github.com/kubernetes-sigs/kind/releases/download/{{ kind_version }}/kind-linux-amd64"
-    dest: /usr/local/bin/kind
-    mode: "0555"
-
-- name: Install helm
-  ansible.builtin.shell: |
-    set -euo pipefail
-    curl -fsSL "https://get.helm.sh/helm-{{ helm_version }}-linux-amd64.tar.gz" \
-      | tar -xz -C /tmp linux-amd64/helm
-    install -m 0555 /tmp/linux-amd64/helm /usr/local/bin/helm
-  args:
-    creates: /usr/local/bin/helm
-    executable: /bin/bash # pipefail is a bashism; default /bin/sh (dash) rejects it
-
-# ktbx (k8s-school toolbox) — TODO: pin to a release asset instead of building.
+# ktbx (k8s-school toolbox) — installed first so it can provision kubectl/helm
+# below. TODO: pin to a release asset instead of building.
 - name: Install ktbx
   ansible.builtin.shell: |
     set -euo pipefail
@@ -63,3 +47,22 @@
     executable: /bin/bash # pipefail is a bashism; default /bin/sh (dash) rejects it
   environment:
     PATH: "/usr/local/go/bin:{{ ansible_facts['env'].PATH }}"
+
+# kubectl + helm + kind all come from ktbx (same tool + pinned versions as the
+# k8s-school CI stack: kubectl v1.30.0, helm v3.16.2, kind v0.31.0). ktbx installs
+# into /usr/local/bin (system-wide) and is version-idempotent; the `creates`
+# guard also skips the task once the binary exists.
+- name: Install kubectl (via ktbx)
+  ansible.builtin.command: /usr/local/bin/ktbx install kubectl
+  args:
+    creates: /usr/local/bin/kubectl
+
+- name: Install helm (via ktbx)
+  ansible.builtin.command: /usr/local/bin/ktbx install helm
+  args:
+    creates: /usr/local/bin/helm
+
+- name: Install kind (via ktbx)
+  ansible.builtin.command: /usr/local/bin/ktbx install kind
+  args:
+    creates: /usr/local/bin/kind

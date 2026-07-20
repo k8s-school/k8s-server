@@ -1,0 +1,121 @@
+-- Managed by Ansible (guacamole role) — do not edit by hand.
+-- Idempotent seed: one Guacamole web account + one {{ guacamole_protocol | upper }} connection per
+-- training participant. Re-runnable — existing rows are left untouched unless a
+-- password actually changed. Guacamole hashes passwords as
+--   SHA-256( UTF8( password || UPPER(HEX(salt)) ) )
+-- which pgcrypto reproduces below, so we never replicate the algorithm in Jinja.
+{% set conn_prefix = 'Desktop' if guacamole_protocol == 'rdp' else 'SSH' %}
+{% set conn_port = guacamole_rdp_port if guacamole_protocol == 'rdp' else guacamole_ssh_port %}
+BEGIN;
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+-- Desired state, materialised as a temp table so the statements below stay
+-- set-based (independent of the participant count).
+CREATE TEMP TABLE seed_users (
+    username text,
+    password text
+) ON COMMIT DROP;
+
+INSERT INTO seed_users (username, password) VALUES
+{% for acct in guac_accounts %}
+    ('{{ acct.username | replace("'", "''") }}', '{{ acct.password | replace("'", "''") }}'){{ "," if not loop.last else ";" }}
+{% endfor %}
+
+-- 1. Login entities for participants who don't have one yet.
+INSERT INTO guacamole_entity (name, type)
+SELECT s.username, 'USER'
+FROM seed_users s
+WHERE NOT EXISTS (
+    SELECT 1 FROM guacamole_entity e WHERE e.name = s.username AND e.type = 'USER'
+);
+
+-- 2. User rows (fresh random salt) for newly created entities.
+INSERT INTO guacamole_user (entity_id, password_hash, password_salt, password_date)
+SELECT e.entity_id,
+       digest(convert_to(s.password || upper(encode(g.salt, 'hex')), 'UTF8'), 'sha256'),
+       g.salt,
+       now()
+FROM seed_users s
+JOIN guacamole_entity e ON e.name = s.username AND e.type = 'USER'
+CROSS JOIN LATERAL (SELECT gen_random_bytes(32) AS salt) g
+WHERE NOT EXISTS (
+    SELECT 1 FROM guacamole_user u WHERE u.entity_id = e.entity_id
+);
+
+-- 3. Refresh a participant password only when it actually changed (keeps the
+--    existing salt, so an unchanged password is a no-op — idempotent).
+UPDATE guacamole_user u
+SET password_hash = digest(convert_to(s.password || upper(encode(u.password_salt, 'hex')), 'UTF8'), 'sha256'),
+    password_date = now()
+FROM guacamole_entity e
+JOIN seed_users s ON s.username = e.name
+WHERE e.type = 'USER'
+  AND u.entity_id = e.entity_id
+  AND u.password_hash <> digest(convert_to(s.password || upper(encode(u.password_salt, 'hex')), 'UTF8'), 'sha256');
+
+-- 3b. Drop any connection left over from a different protocol (e.g. switching
+--     ssh -> rdp). FK cascade removes its parameters and permissions too.
+DELETE FROM guacamole_connection c
+USING seed_users s
+WHERE c.parent_id IS NULL
+  AND c.protocol <> '{{ guacamole_protocol }}'
+  AND c.connection_name IN ('Desktop ' || s.username, 'SSH ' || s.username);
+
+-- 4. One root-level {{ guacamole_protocol | upper }} connection per participant ("{{ conn_prefix }} <user>").
+INSERT INTO guacamole_connection (connection_name, protocol)
+SELECT '{{ conn_prefix }} ' || s.username, '{{ guacamole_protocol }}'
+FROM seed_users s
+WHERE NOT EXISTS (
+    SELECT 1 FROM guacamole_connection c
+    WHERE c.connection_name = '{{ conn_prefix }} ' || s.username AND c.parent_id IS NULL
+);
+
+-- 5. Connection parameters. PK is (connection_id, parameter_name) so ON CONFLICT
+--    keeps this convergent.
+INSERT INTO guacamole_connection_parameter (connection_id, parameter_name, parameter_value)
+SELECT c.connection_id, v.pname, v.pvalue
+FROM seed_users s
+JOIN guacamole_connection c
+    ON c.connection_name = '{{ conn_prefix }} ' || s.username AND c.parent_id IS NULL
+CROSS JOIN LATERAL (VALUES
+    ('hostname', '{{ guacamole_target_host }}'),
+    ('port',     '{{ conn_port | string }}'),
+    ('username', s.username),
+{% if guacamole_embed_password %}
+    ('password', s.password),
+{% endif %}
+{% if guacamole_protocol == 'rdp' %}
+    ('security',      'any'),
+    ('ignore-cert',   'true'),
+    ('resize-method', 'display-update'),
+    ('color-depth',   '24'){{ '' }}
+{% else %}
+    ('color-scheme', 'gray-black'){{ '' }}
+{% endif %}
+) AS v(pname, pvalue)
+ON CONFLICT (connection_id, parameter_name)
+DO UPDATE SET parameter_value = EXCLUDED.parameter_value;
+
+-- 6. Grant each participant READ (i.e. connect) on their own connection.
+INSERT INTO guacamole_connection_permission (entity_id, connection_id, permission)
+SELECT e.entity_id, c.connection_id, 'READ'
+FROM seed_users s
+JOIN guacamole_entity e ON e.name = s.username AND e.type = 'USER'
+JOIN guacamole_connection c
+    ON c.connection_name = '{{ conn_prefix }} ' || s.username AND c.parent_id IS NULL
+ON CONFLICT (entity_id, connection_id, permission) DO NOTHING;
+
+{% if guacamole_admin_password %}
+-- 7. Set the guacadmin administrator password (default is guacadmin/guacadmin).
+--    Only rewrites the hash when the desired password differs — idempotent.
+UPDATE guacamole_user u
+SET password_hash = digest(convert_to('{{ guacamole_admin_password | replace("'", "''") }}' || upper(encode(u.password_salt, 'hex')), 'UTF8'), 'sha256'),
+    password_date = now()
+FROM guacamole_entity e
+WHERE e.entity_id = u.entity_id
+  AND e.name = 'guacadmin' AND e.type = 'USER'
+  AND u.password_hash <> digest(convert_to('{{ guacamole_admin_password | replace("'", "''") }}' || upper(encode(u.password_salt, 'hex')), 'UTF8'), 'sha256');
+{% endif %}
+
+COMMIT;

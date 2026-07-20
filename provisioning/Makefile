@@ -56,9 +56,10 @@ up: ## Create/update the VM + reserved IP, and write the Ansible inventory
 	  echo "Using baked image $$ids (tag flavor=$(FLAVOR))."; \
 	  cd $(TOFU_DIR) && tofu apply -var-file=$(TFVARS) -var image_id="$$ids" -auto-approve; \
 	else \
-	  echo "No image tagged 'flavor=$(FLAVOR)'; booting the raw distro (fallback_image)."; \
-	  echo "Build one first for a faster session: make create-image FLAVOR=$(FLAVOR)"; \
-	  cd $(TOFU_DIR) && tofu apply -var-file=$(TFVARS) -auto-approve; \
+	  echo "ERROR: no image tagged 'flavor=$(FLAVOR)' — nothing to boot."; \
+	  echo "There is no fallback distro. Build the golden image first:"; \
+	  echo "  make create-image FLAVOR=$(FLAVOR)"; \
+	  exit 1; \
 	fi
 
 configure: ## Run Ansible: participant accounts, repo clones, training clusters
@@ -70,7 +71,9 @@ down: ## Destroy the VM only (keeps the reserved IP for the next session)
 	@# A blanket `tofu destroy` would try to delete the IP too, which has
 	@# prevent_destroy set. Target the server so the IP (and its state) survive;
 	@# null_resource.wait_for_ssh is torn down with it as a dependent.
-	cd $(TOFU_DIR) && tofu destroy -target=scaleway_instance_server.main -var-file=$(TFVARS) -auto-approve
+	@# image_id is a required var but irrelevant to a targeted destroy — pass a
+	@# placeholder just to satisfy it.
+	cd $(TOFU_DIR) && tofu destroy -target=scaleway_instance_server.main -var-file=$(TFVARS) -var image_id=unused-on-destroy -auto-approve
 
 delete-image: ## Delete every Scaleway image (+ snapshot) tagged flavor=<FLAVOR>
 	@ids=$$($(IMAGE_IDS)); \

@@ -1,8 +1,3 @@
-locals {
-  # Prefer the baked image; fall back to the raw distro label when not built yet.
-  image = var.image_id != "" ? var.image_id : var.fallback_image
-}
-
 # Reserved IP, tagged like the current setup so it survives `tofu destroy`
 # (destroy removes the server, keeps this IP for the next session).
 resource "scaleway_instance_ip" "main" {
@@ -17,7 +12,7 @@ resource "scaleway_instance_ip" "main" {
 resource "scaleway_instance_server" "main" {
   name  = var.instance_name
   type  = var.instance_type
-  image = local.image
+  image = var.image_id
   zone  = var.zone
   ip_id = scaleway_instance_ip.main.id
   tags  = [var.instance_name]

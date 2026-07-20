@@ -54,8 +54,35 @@ provisioning/
         ├── base_tools/   # go, kind, kubectl, helm, ktbx (baked)
         ├── participants/ # accounts, home, repo clone, bashrc (per-session)
         ├── trainer/      # shared trainer account: sudo + docker + repo (per-session)
-        └── training/     # ktbx create / helm / crc (per-session)
+        ├── training/     # ktbx create / helm / crc (per-session)
+        └── guacamole/    # optional browser SSH gateway, Docker stack (per-session)
 ```
+
+## Optional: Guacamole browser SSH gateway
+
+[Apache Guacamole](https://guacamole.apache.org/) gives participants a
+browser-based terminal (no SSH client needed) — one auto-generated SSH
+connection per account, straight to their own training user. It runs as a Docker
+stack (`postgres` + `guacd` + `guacamole`) on the server, provisioned per session
+by the `guacamole` role.
+
+Off by default. Enable it per flavor in `ansible/group_vars/<flavor>.yml`:
+
+```yaml
+guacamole_enabled: true
+```
+
+then `make configure FLAVOR=<flavor>` (or `make provision`). Access it at
+`http://<server>/guacamole`:
+
+- **Participants** log in with their training username/password (`student<N>` /
+  `k8s<N>`) and see a single "SSH `<user>`" connection to their own account.
+- **Admin** is `guacadmin`, password = the vaulted trainer password.
+
+The role also enables sshd `PasswordAuthentication` (Guacamole logs users in over
+SSH) and publishes the web UI on port 80 — the training tooling already holds
+8080. Tunables (version, port, images, password embedding) live in
+`roles/guacamole/defaults/main.yml`.
 
 > Skeleton: search for `TODO` before first real use (credentials, image IDs,
 > pinned versions). The Ansible roles intentionally reproduce the logic of the

@@ -1,6 +1,5 @@
-# Kubernetes training: shared k8sN accounts, k8s0 is the instructor.
-user_prefix: "k8s"
-user_start: 0
+# Kubernetes training: shared studentN accounts; the instructor uses the
+# dedicated 'trainer' account (user_prefix/user_start inherited from all/vars.yml).
 repo: "k8s-school"
 repo_dest: ".ktbx/homefs/k8s-school"
 # Trainer gets the advanced course repo (k8s-school/k8s-advanced).

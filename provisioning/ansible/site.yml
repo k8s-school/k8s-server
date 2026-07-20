@@ -1,7 +1,8 @@
 # Run per session against a booted VM (make configure FLAVOR=...).
-# Dynamic layer: participant accounts, fresh repo clones, training clusters.
-# Also runs docker/base_tools as a safety net when booting the fallback image
-# (image_id empty) — they are no-ops on a properly baked image.
+# Dynamic layer only: participant accounts, fresh repo clones, training clusters.
+# The static layer (docker + base_tools) is baked into the golden image by
+# Packer (ansible/image.yml); a session always boots that image, so it is not
+# repeated here.
 - name: Configure training session
   # flavor is provided at runtime via -e (see Makefile); default keeps lint's
   # offline syntax-check happy.
@@ -10,13 +11,17 @@
   vars:
     ansible_python_interpreter: auto_silent
   roles:
-    - role: docker
-      tags: [base]
-    - role: base_tools
-      tags: [base]
-    - role: participants
-      tags: [session]
     - role: trainer
+      tags: [session]
+    # Optional: browser-based gateway (Apache Guacamole, Docker stack). Runs after
+    # the trainer account but before the students: it only writes DB rows (it
+    # doesn't need the Unix accounts yet), and doing it early raises the inotify
+    # limits + starts xrdp before the students' kind clusters exhaust inotify.
+    # Off by default; set guacamole_enabled: true in a flavor's group_vars.
+    - role: guacamole
+      tags: [guacamole, session]
+      when: guacamole_enabled | default(false) | bool
+    - role: participants
       tags: [session]
     - role: training
       tags: [session]

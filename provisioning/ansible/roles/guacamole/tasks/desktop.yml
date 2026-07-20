@@ -1,0 +1,124 @@
+---
+# XFCE desktop + xrdp, so each participant's RDP connection lands in their own
+# graphical session (browser included). Included from main.yml only in rdp mode.
+# Debian/Ubuntu only — the training image is Ubuntu.
+
+- name: Ensure the apt keyrings directory exists
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+
+# Ubuntu ships firefox/chromium as snaps that don't run under xrdp; pull a real
+# .deb from Mozilla's APT repo instead.
+- name: Add the Mozilla APT signing key
+  ansible.builtin.get_url:
+    url: https://packages.mozilla.org/apt/repo-signing-key.gpg
+    dest: /etc/apt/keyrings/packages.mozilla.org.asc
+    mode: "0644"
+
+- name: Add the Mozilla APT repository
+  ansible.builtin.deb822_repository:
+    name: mozilla
+    types: [deb]
+    uris: "https://packages.mozilla.org/apt"
+    suites: [mozilla]
+    components: [main]
+    architectures: [amd64]
+    signed_by: /etc/apt/keyrings/packages.mozilla.org.asc
+    state: present
+
+- name: Prefer the Mozilla firefox over the Ubuntu snap transitional package
+  ansible.builtin.copy:
+    dest: /etc/apt/preferences.d/mozilla
+    mode: "0644"
+    content: |
+      # Managed by Ansible (guacamole role).
+      Package: *
+      Pin: origin packages.mozilla.org
+      Pin-Priority: 1000
+
+- name: Install the XFCE desktop, xrdp and a browser
+  ansible.builtin.apt:
+    name: "{{ guacamole_desktop_packages + [guacamole_browser_package] }}"
+    state: present
+    update_cache: true
+
+# xrdp's Xorg backend needs any user allowed to start the X server.
+- name: Allow any user to start X (xrdp Xorg backend)
+  ansible.builtin.copy:
+    dest: /etc/X11/Xwrapper.config
+    mode: "0644"
+    content: |
+      # Managed by Ansible (guacamole role).
+      allowed_users=anybody
+      needs_root_rights=yes
+  notify: Restart xrdp
+
+# Force every xrdp session to launch XFCE (participant homes predate this role,
+# so a system-wide startwm is simpler than seeding ~/.xsession everywhere).
+- name: Make xrdp start an XFCE session
+  ansible.builtin.copy:
+    dest: /etc/xrdp/startwm.sh
+    mode: "0755"
+    content: |
+      #!/bin/sh
+      # Managed by Ansible (guacamole role).
+      if test -r /etc/profile; then . /etc/profile; fi
+      if test -r ~/.profile; then . ~/.profile; fi
+      exec startxfce4
+  notify: Restart xrdp
+
+# xrdp reads its TLS key as the 'xrdp' user; ssl-cert membership grants access.
+- name: Ensure the xrdp user can read its TLS key
+  ansible.builtin.user:
+    name: xrdp
+    groups: ssl-cert
+    append: true
+  notify: Restart xrdp
+
+# Silence the recurring polkit "Authentication required to create a color
+# managed device" popup that XFCE raises for every login.
+- name: Suppress the colord authentication popup in the desktop
+  ansible.builtin.copy:
+    dest: /etc/polkit-1/rules.d/49-colord-no-auth.rules
+    mode: "0644"
+    content: |
+      // Managed by Ansible (guacamole role).
+      polkit.addRule(function(action, subject) {
+          if (action.id == "org.freedesktop.color-manager.create-device" ||
+              action.id == "org.freedesktop.color-manager.create-profile" ||
+              action.id == "org.freedesktop.color-manager.delete-device" ||
+              action.id == "org.freedesktop.color-manager.delete-profile" ||
+              action.id == "org.freedesktop.color-manager.modify-device" ||
+              action.id == "org.freedesktop.color-manager.modify-profile") {
+              return polkit.Result.YES;
+          }
+      });
+
+# The training kind clusters consume the default fs.inotify.max_user_instances,
+# which then starves systemd's PID-file watch for xrdp ("Too many open files" ->
+# xrdp.service fails despite the daemon listening fine). Raise the ceilings.
+- name: Raise inotify limits (kind clusters + xrdp exhaust the defaults)
+  ansible.builtin.copy:
+    dest: /etc/sysctl.d/99-guacamole-inotify.conf
+    mode: "0644"
+    content: |
+      # Managed by Ansible (guacamole role).
+      fs.inotify.max_user_instances = 8192
+      fs.inotify.max_user_watches = 1048576
+  register: guac_inotify
+
+- name: Apply the inotify sysctl settings
+  ansible.builtin.command: sysctl --system
+  when: guac_inotify is changed
+  changed_when: false
+
+- name: Enable and start xrdp (session manager first)
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop:
+    - xrdp-sesman
+    - xrdp

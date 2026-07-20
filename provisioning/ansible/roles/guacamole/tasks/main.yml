@@ -1,0 +1,154 @@
+---
+# Optional browser-based access to the training server via Apache Guacamole,
+# deployed as a Docker stack (postgres + guacd + guacamole). Auto-seeds one web
+# account + one connection per participant. Gated by guacamole_enabled — the role
+# is only included from site.yml when that is true.
+#
+# Two connection modes (guacamole_protocol):
+#   rdp -> a full XFCE desktop via xrdp (default), auth'd by the Unix password
+#   ssh -> a plain terminal, auth'd over the host's sshd
+# Depends on the docker role (docker-ce + the compose plugin). guacd reaches the
+# host through the host-gateway alias.
+
+# --- rdp mode: install the XFCE desktop + xrdp -------------------------------
+- name: Install the XFCE desktop and xrdp
+  ansible.builtin.include_tasks: desktop.yml
+  when: guacamole_protocol == "rdp"
+
+# --- let sshd accept password auth -------------------------------------------
+# Two reasons: in ssh mode guacd logs participants in with their password, and in
+# either mode students may want to SSH into the host directly with their training
+# password. Cloud images ship a drop-in disabling it; a lexically-earlier drop-in
+# wins (sshd uses the first value seen).
+- name: Allow SSH password authentication (participant / trainer login)
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/00-guacamole-passwordauth.conf
+    mode: "0644"
+    content: |
+      # Managed by Ansible (guacamole role) — required for password SSH login.
+      PasswordAuthentication yes
+    validate: "sshd -t -f %s"
+  when: guacamole_enable_password_auth | default(true)
+  notify: Restart sshd
+
+# Apply the sshd/xrdp changes now (not at play end): guacd authenticates
+# participants against them, and a failure further down still leaves them applied.
+- name: Apply service changes immediately
+  ansible.builtin.meta: flush_handlers
+
+- name: Ensure the Guacamole deployment directory exists
+  ansible.builtin.file:
+    path: "{{ guacamole_home }}"
+    state: directory
+    mode: "0750"
+
+# 0755 so the container's unprivileged postgres user can read the mounted schema
+# (contains no secrets — the seed with passwords stays in guacamole_home, 0750).
+- name: Ensure the Postgres init directory exists
+  ansible.builtin.file:
+    path: "{{ guacamole_home }}/initdb"
+    state: directory
+    mode: "0755"
+
+# initdb.sh emits the full schema (+ the default guacadmin admin). Loaded once by
+# Postgres on a fresh data volume; the `creates` guard keeps re-runs cheap.
+- name: Generate the Guacamole database schema (once)
+  ansible.builtin.shell: >
+    set -o pipefail;
+    docker run --rm {{ guacamole_image }} /opt/guacamole/bin/initdb.sh --postgresql
+    > {{ guacamole_home }}/initdb/001-schema.sql
+  args:
+    executable: /bin/bash
+    creates: "{{ guacamole_home }}/initdb/001-schema.sql"
+
+- name: Render the docker compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ guacamole_home }}/docker-compose.yml"
+    mode: "0640"
+
+# Recompute participant identities here (user_prefix/user_start/nb_users) so the
+# role is self-contained and doesn't depend on the participants role having run.
+# web login = connection target = the same Unix account, so one password each.
+- name: Build the participant list for Guacamole
+  ansible.builtin.set_fact:
+    guac_accounts: >-
+      {{ guac_accounts | default([]) + [{
+           'username': user_prefix ~ item,
+           'password': (item ~ participant_password)
+         }] }}
+  loop: "{{ range(user_start | int, (nb_users | int) + 1) | list }}"
+  loop_control:
+    label: "{{ user_prefix ~ item }}"
+
+# The trainer gets its own browser desktop too — same connection type as the
+# students, authenticated by the trainer's Unix password. This is distinct from
+# the guacadmin administrator (whose password the seed sets in section 7).
+- name: Add the trainer account to the Guacamole accounts
+  ansible.builtin.set_fact:
+    guac_accounts: >-
+      {{ guac_accounts | default([]) + [{
+           'username': trainer_user,
+           'password': trainer_password
+         }] }}
+  when: trainer_password | default('') | length > 0
+
+- name: Start the Guacamole stack
+  ansible.builtin.command:
+    cmd: docker compose up -d
+    chdir: "{{ guacamole_home }}"
+  register: guac_compose
+  changed_when: >-
+    ('Started' in guac_compose.stderr) or ('Created' in guac_compose.stderr)
+    or ('Recreated' in guac_compose.stderr)
+
+- name: Wait for Postgres to accept connections
+  ansible.builtin.command:
+    cmd: docker compose exec -T postgres pg_isready -U {{ guacamole_db_user }} -d {{ guacamole_db_name }}
+    chdir: "{{ guacamole_home }}"
+  register: guac_pg_ready
+  until: guac_pg_ready.rc == 0
+  retries: 30
+  delay: 2
+  changed_when: false
+
+# On a fresh volume the schema loads asynchronously after Postgres is up; wait
+# for the marker table before seeding.
+- name: Wait for the Guacamole schema to be loaded
+  ansible.builtin.command:
+    cmd: >-
+      docker compose exec -T postgres
+      psql -U {{ guacamole_db_user }} -d {{ guacamole_db_name }}
+      -tAc "SELECT to_regclass('public.guacamole_user')"
+    chdir: "{{ guacamole_home }}"
+  register: guac_schema
+  until: (guac_schema.stdout | trim) == 'guacamole_user'
+  retries: 30
+  delay: 2
+  changed_when: false
+
+- name: Render the participant seed SQL
+  ansible.builtin.template:
+    src: seed-participants.sql.j2
+    dest: "{{ guacamole_home }}/seed-participants.sql"
+    mode: "0640"
+
+# The seed is convergent (guarded inserts/updates), so it never reports changed.
+- name: Seed participant accounts, connections and permissions
+  ansible.builtin.shell: >
+    set -o pipefail;
+    docker compose exec -T postgres
+    psql -v ON_ERROR_STOP=1 -U {{ guacamole_db_user }} -d {{ guacamole_db_name }}
+    < {{ guacamole_home }}/seed-participants.sql
+  args:
+    executable: /bin/bash
+    chdir: "{{ guacamole_home }}"
+  changed_when: false
+
+- name: Show how to reach Guacamole
+  ansible.builtin.debug:
+    msg: >-
+      Guacamole is up at http://{{ ansible_host | default(inventory_hostname) }}:{{ guacamole_http_port }}/guacamole
+      — participants log in with their training username/password ({{ user_prefix }}<N>)
+      and get a {{ 'full XFCE desktop (RDP)' if guacamole_protocol == 'rdp' else 'terminal (SSH)' }};
+      admin is 'guacadmin'.

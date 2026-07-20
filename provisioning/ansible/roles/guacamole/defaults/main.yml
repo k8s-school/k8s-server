@@ -1,0 +1,61 @@
+---
+# Tunables for the optional Guacamole gateway (Docker stack). The master switch
+# `guacamole_enabled` lives in group_vars/all/vars.yml (global default: off);
+# flip it to true in a flavor's group_vars to deploy the stack there.
+
+# Where the compose file, generated schema and seed SQL are written on the host.
+guacamole_home: /opt/guacamole
+
+# Pinned Guacamole release (web app + guacd share the same tag).
+guacamole_version: "1.5.5"
+guacamole_image: "guacamole/guacamole:{{ guacamole_version }}"
+guacd_image: "guacamole/guacd:{{ guacamole_version }}"
+guacamole_postgres_image: "postgres:15-alpine"
+
+# Host port the web UI is published on. Access it at
+#   http://<server>:{{ guacamole_http_port }}/guacamole
+# Default 80: the training tooling (ktbx/kubectl) grabs 8080, and a privileged
+# port can't be hijacked by unprivileged student processes. Override if needed.
+guacamole_http_port: 80
+
+# Auth database (Postgres). The password is internal-only: it never leaves the
+# compose network, so a fixed local value is fine (not a training secret).
+guacamole_db_name: guacamole
+guacamole_db_user: guacamole
+guacamole_db_password: "guacamole-internal"
+
+# Web password for the built-in 'guacadmin' administrator. Reuses the (vaulted)
+# trainer password so no new secret is needed — the trainer administers Guacamole.
+guacamole_admin_password: "{{ trainer_password }}"
+
+# What each auto-generated connection gives the participant:
+#   rdp -> a full XFCE Linux desktop (browser included) via xrdp   [default]
+#   ssh -> a plain terminal
+# guacd reaches the host through the Docker host-gateway alias (see the compose
+# file); RDP authenticates against the participant's own Unix password via PAM.
+guacamole_protocol: "rdp"
+guacamole_target_host: "host.docker.internal"
+guacamole_rdp_port: 3389
+guacamole_ssh_port: 22
+
+# Embed each participant's password in their connection for one-click login.
+# Set to false to have Guacamole prompt for it interactively.
+guacamole_embed_password: true
+
+# --- Desktop (rdp mode only) --------------------------------------------------
+# Installed on the host so xrdp can hand each participant an XFCE session.
+guacamole_desktop_packages:
+  - xfce4
+  - xfce4-terminal
+  - xrdp
+  - xorgxrdp
+  - dbus-x11
+# Browser students launch from the desktop. Pulled from Mozilla's APT repo (the
+# Ubuntu 'firefox' package is a snap that doesn't run under xrdp).
+guacamole_browser_package: firefox
+
+# --- SSH password authentication ----------------------------------------------
+# Make the host's sshd accept password auth, in BOTH modes: required by guacd in
+# ssh mode, and lets students/trainer SSH into the host directly with their
+# training password in rdp mode. Set false to keep sshd key-only.
+guacamole_enable_password_auth: true
