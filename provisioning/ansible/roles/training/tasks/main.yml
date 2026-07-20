@@ -5,10 +5,10 @@
 - name: Instructor cluster via ktbx (k8s flavor)
   when: training_action == "ktbx_create"
   become: true
-  become_user: "{{ user_prefix }}0"
+  become_user: "{{ trainer_user }}"
   ansible.builtin.command: ktbx create
   args:
-    creates: "/home/{{ user_prefix }}0/.kube/config"
+    creates: "/home/{{ trainer_user }}/.kube/config"
 
 - name: Install helm chart deps only (otel flavor)
   when: training_action == "helm_only"

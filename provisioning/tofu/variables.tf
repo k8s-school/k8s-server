@@ -27,19 +27,16 @@ variable "instance_type" {
 variable "image_id" {
   description = <<-EOT
     Baked image built by Packer (packer build -var flavor=<flavor>).
-    Normally left empty and injected by `make up`, which resolves it from the
-    image's `flavor=<flavor>` tag. Set it only to pin a specific image by hand
-    (tofu apply -var image_id=<id>). Empty boots the raw `fallback_image`
-    instead (slower: Ansible installs everything at session time).
+    Injected by `make up`, which resolves it from the image's `flavor=<flavor>`
+    tag. Required: there is no fallback distro — a session must run on a baked
+    image. Build one first with `make create-image FLAVOR=<flavor>`.
   EOT
   type        = string
-  default     = ""
-}
 
-variable "fallback_image" {
-  description = "Distro label used when image_id is empty (ubuntu_noble, fedora, ...)."
-  type        = string
-  default     = "ubuntu_noble"
+  validation {
+    condition     = length(var.image_id) > 0
+    error_message = "image_id is required. Build the golden image first: make create-image FLAVOR=<flavor>."
+  }
 }
 
 variable "root_volume_size_gb" {

@@ -2,6 +2,13 @@
 # Secrets live encrypted in vault.yml (same directory); the vault_* vars are
 # referenced from here so playbooks/roles only ever see the friendly names.
 
+# Participant accounts, named "<user_prefix><index>", the same on every flavor:
+# 'student' accounts for the students, plus the dedicated 'trainer' account below
+# for the instructor (no more <prefix>0 instructor). Override per flavor only if
+# a flavor genuinely needs different numbering.
+user_prefix: "student"
+user_start: 1
+
 # Number of participant accounts (mirrors NB_USER in bootstrap/env.sh).
 nb_users: 30
 
@@ -14,9 +21,8 @@ participant_password: "{{ vault_participant_password }}"
 password_salt: "{{ vault_password_salt }}"
 
 # Pinned tooling versions (baked by base_tools). Keep in sync with bootstrap/.
-kubectl_version: "v1.30.0"
-kind_version: "v0.30.0"
-helm_version: "v3.16.2"
+# kubectl, helm and kind versions are owned by ktbx (ktbx install ...) to match
+# the k8s-school CI stack; only Go is pinned here.
 go_version: "1.23.0"
 
 github_org: "k8s-school"
@@ -29,3 +35,9 @@ trainer_user: "trainer"
 trainer_groups: ["docker"]
 # Login password for the trainer (vaulted). sudo is passwordless independently.
 trainer_password: "{{ vault_trainer_password }}"
+
+# Optional Apache Guacamole gateway (Docker stack) giving participants
+# browser-based SSH access to this server, one auto-generated connection each.
+# Off by default; flip to true in a flavor's group_vars to deploy it there.
+# Per-role tunables (version, port, images) live in roles/guacamole/defaults.
+guacamole_enabled: false

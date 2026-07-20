@@ -1,6 +1,7 @@
 # OpenTelemetry training: one account + one kind cluster per student.
-user_prefix: "student"
-user_start: 1
+# studentN accounts + the 'trainer' account come from all/vars.yml.
+# 20 students is enough for this training (overrides the default of 30).
+nb_users: 20
 repo: "otel"
 repo_dest: ".ktbx/homefs/otel"
 # Trainer gets the same repo (k8s-school/otel).
@@ -13,3 +14,6 @@ per_user_cluster: true
 
 # Cluster provisioning done at session time (helm is baked; students self-serve).
 training_action: "helm_only"
+
+# Deploy the optional Guacamole gateway (browser SSH per student) on this flavor.
+guacamole_enabled: true

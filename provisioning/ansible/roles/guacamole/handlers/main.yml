@@ -1,0 +1,11 @@
+---
+# Debian/Ubuntu name the daemon 'ssh'; RedHat/Fedora name it 'sshd'.
+- name: Restart sshd
+  ansible.builtin.systemd:
+    name: "{{ 'ssh' if ansible_facts['os_family'] == 'Debian' else 'sshd' }}"
+    state: restarted
+
+- name: Restart xrdp
+  ansible.builtin.systemd:
+    name: xrdp
+    state: restarted
