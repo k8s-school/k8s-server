@@ -5,7 +5,7 @@
 
 - name: Install base OS packages
   ansible.builtin.package:
-    name: [git, curl, bash-completion, jq]
+    name: [git, curl, bash-completion, jq, tree]
     state: present
 
 # System-wide bash completion for every account (login shells), incl. future
@@ -66,3 +66,84 @@
   ansible.builtin.command: /usr/local/bin/ktbx install kind
   args:
     creates: /usr/local/bin/kind
+
+# VS Code — graphical editor for the XFCE/Guacamole desktops. It's Electron, so
+# each running instance costs ~300-600 MB RAM; on GP1-M (8 vCPU / 32 GB) that's
+# fine for the 4-5 concurrent session accounts (kind + Docker are the real RAM
+# sink, not the editors). Pulled from Microsoft's own repo so it stays a normal
+# apt/dnf package rather than a snap (snaps don't run under xrdp — see image.yml).
+
+# --- Debian/Ubuntu ---
+# deb822_repository needs the python3-debian library on the target. The docker
+# role installs it too, but repeat it here so base_tools stays self-contained
+# whatever the role order in image.yml.
+- name: Ensure python3-debian is present
+  ansible.builtin.apt:
+    name: python3-debian
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  when: ansible_facts['os_family'] == "Debian"
+
+- name: Add VS Code apt repository (deb822, fetches the signing key)
+  ansible.builtin.deb822_repository:
+    name: vscode
+    types: [deb]
+    uris: "https://packages.microsoft.com/repos/code"
+    suites: [stable]
+    components: [main]
+    architectures: [amd64, arm64, armhf]
+    signed_by: "https://packages.microsoft.com/keys/microsoft.asc"
+    state: present
+  when: ansible_facts['os_family'] == "Debian"
+
+- name: Install VS Code (Debian/Ubuntu)
+  ansible.builtin.apt:
+    name: code
+    state: present
+    update_cache: true
+  when: ansible_facts['os_family'] == "Debian"
+
+# --- Fedora ---
+- name: Import Microsoft RPM key for VS Code (Fedora)
+  ansible.builtin.rpm_key:
+    key: https://packages.microsoft.com/keys/microsoft.asc
+    state: present
+  when: ansible_facts['os_family'] == "RedHat"
+
+- name: Add VS Code yum repository (Fedora)
+  ansible.builtin.yum_repository:
+    name: vscode
+    description: Visual Studio Code
+    baseurl: https://packages.microsoft.com/yumrepos/vscode
+    gpgcheck: true
+    gpgkey: https://packages.microsoft.com/keys/microsoft.asc
+    enabled: true
+  when: ansible_facts['os_family'] == "RedHat"
+
+- name: Install VS Code (Fedora)
+  ansible.builtin.dnf:
+    name: code
+    state: present
+  when: ansible_facts['os_family'] == "RedHat"
+
+# Default settings baked into /etc/skel so every session account created later by
+# site.yml inherits them: kill telemetry, and pin update.mode=none so VS Code
+# never self-updates mid-session (same freeze policy as the apt updaters in
+# image.yml). Users can still tweak their own copy afterwards.
+- name: Create VS Code config directory in /etc/skel
+  ansible.builtin.file:
+    path: /etc/skel/.config/Code/User
+    state: directory
+    mode: "0755"
+
+- name: Provide default VS Code settings for all future users
+  ansible.builtin.copy:
+    dest: /etc/skel/.config/Code/User/settings.json
+    mode: "0644"
+    content: |
+      {
+        "telemetry.telemetryLevel": "off",
+        "update.mode": "none",
+        "workbench.startupEditor": "none"
+      }

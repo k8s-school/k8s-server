@@ -17,6 +17,15 @@
     dest: /etc/apt/keyrings/packages.mozilla.org.asc
     mode: "0644"
 
+# deb822_repository needs the python3-debian library on the target. Installed
+# here as well as in the other roles so this one stays self-contained.
+- name: Ensure python3-debian is present
+  ansible.builtin.apt:
+    name: python3-debian
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
 - name: Add the Mozilla APT repository
   ansible.builtin.deb822_repository:
     name: mozilla
@@ -37,6 +46,14 @@
       Package: *
       Pin: origin packages.mozilla.org
       Pin-Priority: 1000
+
+      # Ubuntu's 'firefox' is a transitional stub pulling the snap, which does not
+      # run under xrdp. Its epoch (1:1snap1-...) sorts above Mozilla's 153.0~build1,
+      # so any apt upgrade happily "upgrades" the working .deb into a broken snap —
+      # exactly what unattended-upgrades did on 2026-07-22. Never install it.
+      Package: firefox firefox-esr
+      Pin: release o=Ubuntu
+      Pin-Priority: -1
 
 - name: Install the XFCE desktop, xrdp and a browser
   ansible.builtin.apt:
@@ -107,12 +124,12 @@
       # Managed by Ansible (guacamole role).
       fs.inotify.max_user_instances = 8192
       fs.inotify.max_user_watches = 1048576
-  register: guac_inotify
+  notify: Reload sysctl
 
-- name: Apply the inotify sysctl settings
-  ansible.builtin.command: sysctl --system
-  when: guac_inotify is changed
-  changed_when: false
+# The new ceilings must be live *before* xrdp starts, so run the handler here
+# instead of letting it wait for the end of the play.
+- name: Apply the pending sysctl changes before starting xrdp
+  ansible.builtin.meta: flush_handlers
 
 - name: Enable and start xrdp (session manager first)
   ansible.builtin.systemd:
