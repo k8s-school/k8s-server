@@ -99,6 +99,19 @@ guacamole_firefox_bookmarks:
 # a fresh profile. Applied as a *default* so a participant can still hide it.
 guacamole_firefox_show_bookmarks_toolbar: true
 
+# --- Live desktop sessions (rdp mode only) ------------------------------------
+# Configuring xrdp restarts it, and a restart does NOT close the desktops it is
+# serving: they survive orphaned, and xfce4-session then refuses to open a new
+# one for the same account, locking the participant out until someone kills the
+# leftovers by hand. So the role closes live sessions up front instead.
+guacamole_close_live_sessions: true
+
+# When sessions are found, the play pauses and lists the accounts about to be
+# disconnected, so the operator can abort (Ctrl-C then A) rather than kick a
+# class mid-exercise. Pass -e guacamole_session_reset_confirmed=true for
+# unattended runs (CI, image bake, session bring-up before anyone connects).
+guacamole_session_reset_confirmed: false
+
 # --- SSH password authentication ----------------------------------------------
 # Make the host's sshd accept password auth, in BOTH modes: required by guacd in
 # ssh mode, and lets students/trainer SSH into the host directly with their

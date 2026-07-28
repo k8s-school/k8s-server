@@ -1,0 +1,84 @@
+---
+# Clear any live XFCE desktop before reconfiguring xrdp. Included first from
+# main.yml (rdp mode only), so it runs BEFORE anything can notify "Restart xrdp".
+#
+# Why this exists: restarting xrdp does not close the desktops it is serving. The
+# session survives detached from its (now gone) parent, and xfce4-session refuses
+# to start a second one for the same account — so the participant gets a desktop
+# that opens and closes again within a second, and stays locked out until the
+# orphan is killed by hand. Terminating the sessions up front turns a silent
+# lock-out into an expected, announced disconnect.
+
+- name: List accounts with a live desktop session
+  # user:32 avoids ps truncating names at 8 chars ("student10" and up).
+  ansible.builtin.command: ps -C xfce4-session -o user:32=
+  register: guacamole_live_sessions
+  changed_when: false
+  # No match is rc=1 for ps, which is a normal "nobody is connected" here.
+  failed_when: guacamole_live_sessions.rc not in [0, 1]
+
+- name: Register the accounts whose desktop will be closed
+  ansible.builtin.set_fact:
+    guacamole_sessions_to_close: "{{ guacamole_live_sessions.stdout_lines | map('trim') | select | unique | sort }}"
+
+# Interactive gate: the operator sees exactly who is about to be kicked and can
+# still abort with Ctrl-C then A. Skipped when nobody is connected, and
+# bypassable for unattended runs (-e guacamole_session_reset_confirmed=true).
+# Note this only guards a run started from a terminal: with no tty, `pause`
+# prints "Not waiting for response to prompt as stdin is not interactive" and
+# carries on. That is the intended behaviour for CI and for the image bake (no
+# session exists there anyway), but it does mean the flag is documentation of
+# intent rather than the thing that unblocks an automated run.
+- name: Confirm closing the live desktop sessions
+  ansible.builtin.pause:
+    prompt: |
+
+      {{ guacamole_sessions_to_close | length }} live desktop session(s): {{ guacamole_sessions_to_close | join(', ') }}
+      Configuring xrdp will restart it, so these desktops are about to be closed.
+      Anyone connected loses their graphical session (running terminals included);
+      their files and containers are untouched, and they can log straight back in.
+
+      [Enter] to close them and continue — [Ctrl-C then A] to abort
+  when:
+    - guacamole_sessions_to_close | length > 0
+    - not (guacamole_session_reset_confirmed | default(false) | bool)
+
+# TERM to xfce4-session first: it is the session leader and takes its own
+# children (panel, wm, settings daemon) down cleanly. Xorg, the xrdp channel
+# server and xfconfd are not its children, so they are swept afterwards —
+# xfconfd in particular caches the settings this role just rewrote, and would
+# otherwise hand the stale values back to the next session.
+- name: Close the live desktop sessions
+  ansible.builtin.shell:
+    cmd: |
+      set -u
+      for user in {{ guacamole_sessions_to_close | map('quote') | join(' ') }}; do
+        pkill -u "$user" -TERM -x xfce4-session || true
+      done
+      # Give the session leaders a moment to tear their own children down.
+      for _ in $(seq 10); do
+        pgrep -x xfce4-session >/dev/null 2>&1 || break
+        sleep 1
+      done
+      for user in {{ guacamole_sessions_to_close | map('quote') | join(' ') }}; do
+        pkill -u "$user" -KILL -x xfce4-session || true
+        for proc in xfwm4 xfce4-panel xfsettingsd xfconfd xrdp-chansrv Xorg; do
+          pkill -u "$user" -TERM -x "$proc" || true
+        done
+      done
+      exit 0
+    executable: /bin/bash
+  # Guarded by the `when` below, so reaching this task always means a session
+  # was open and is now being closed.
+  changed_when: true
+  when: guacamole_sessions_to_close | length > 0
+
+- name: Wait for the sessions to be gone
+  ansible.builtin.command: ps -C xfce4-session -o user:32=
+  register: guacamole_sessions_left
+  changed_when: false
+  failed_when: false
+  until: (guacamole_sessions_left.stdout | trim) == ''
+  retries: 10
+  delay: 2
+  when: guacamole_sessions_to_close | length > 0
