@@ -8,26 +8,6 @@
     name: [git, curl, bash-completion, jq, tree]
     state: present
 
-# System-wide bash completion for every account (login shells), incl. future
-# users. Replaces the per-user .bashrc lines from the old kubectl install.
-- name: Enable kubectl and helm bash completion for all accounts
-  ansible.builtin.copy:
-    dest: /etc/profile.d/kubectl-helm-completion.sh
-    mode: "0644"
-    content: |
-      # Managed by Ansible (base_tools role).
-      # Bash-only (process substitution). /etc/profile.d/*.sh is also sourced by
-      # POSIX /bin/sh logins (e.g. xrdp's dash startwm.sh); without this guard the
-      # `<(...)` below is a syntax error that aborts the whole shell — which is
-      # what turned the Guacamole XFCE session into a black screen.
-      [ -n "$BASH_VERSION" ] || return 0
-      if command -v kubectl >/dev/null 2>&1; then
-        source <(kubectl completion bash)
-      fi
-      if command -v helm >/dev/null 2>&1; then
-        source <(helm completion bash)
-      fi
-
 - name: Install Go
   ansible.builtin.unarchive:
     src: "https://go.dev/dl/go{{ go_version }}.linux-amd64.tar.gz"
@@ -66,6 +46,40 @@
   ansible.builtin.command: /usr/local/bin/ktbx install kind
   args:
     creates: /usr/local/bin/kind
+
+# System-wide bash completion for every account, incl. users created later.
+# Must run after the binaries above: the scripts are generated from them, so a
+# tooling upgrade regenerates a matching completion (copy compares the content).
+#
+# /etc/bash_completion.d/ — NOT /etc/profile.d/ — is what makes this work in the
+# Guacamole desktop: profile.d is only sourced by *login* shells, and the XFCE
+# terminal spawns an interactive non-login bash, so completion was silently
+# missing there while it worked over SSH. bash-completion (installed above) is
+# loaded from /etc/bash.bashrc for every interactive shell and sources this
+# directory. Static files also drop the per-shell `source <(kubectl completion
+# bash)` fork, and with it the dash-syntax-error footgun that once blanked the
+# XFCE session.
+- name: Generate the kubectl and helm bash completion scripts
+  ansible.builtin.command: "/usr/local/bin/{{ item }} completion bash"
+  register: base_tools_completion
+  changed_when: false
+  loop: [kubectl, helm]
+
+- name: Install the completion scripts system-wide
+  ansible.builtin.copy:
+    dest: "/etc/bash_completion.d/{{ item.item }}"
+    content: "{{ item.stdout }}\n"
+    mode: "0644"
+  loop: "{{ base_tools_completion.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+# Superseded by the files above; remove it so completion is not loaded twice
+# (and so the process-substitution version stops running in login shells).
+- name: Remove the old profile.d completion drop-in
+  ansible.builtin.file:
+    path: /etc/profile.d/kubectl-helm-completion.sh
+    state: absent
 
 # VS Code — graphical editor for the XFCE/Guacamole desktops. It's Electron, so
 # each running instance costs ~300-600 MB RAM; on GP1-M (8 vCPU / 32 GB) that's

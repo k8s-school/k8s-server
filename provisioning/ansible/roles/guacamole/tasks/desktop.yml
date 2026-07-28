@@ -86,6 +86,144 @@
       exec startxfce4
   notify: Restart xrdp
 
+# --- Firefox defaults for every account ---------------------------------------
+# Bookmarks are per-profile state in places.sqlite, which cannot be seeded
+# idempotently. The enterprise policy file is the supported way to push them:
+# Firefox reads /etc/firefox/policies/policies.json at startup for *every* user
+# on the host, so students and the trainer all get the entries with no per-home
+# task and no clobbering of bookmarks they add themselves.
+- name: Ensure the Firefox policies directory exists
+  ansible.builtin.file:
+    path: /etc/firefox/policies
+    state: directory
+    mode: "0755"
+
+- name: Push the shared Firefox bookmarks to every account
+  ansible.builtin.copy:
+    dest: /etc/firefox/policies/policies.json
+    mode: "0644"
+    content: |
+      {{ {'policies': {
+             'Bookmarks': guacamole_firefox_bookmarks,
+             'Preferences': {
+               'browser.toolbars.bookmarks.visibility': {
+                 'Value': 'always' if guacamole_firefox_show_bookmarks_toolbar else 'newtab',
+                 'Status': 'default'
+               }
+             }
+           }} | to_nice_json }}
+
+# --- Latency tuning ----------------------------------------------------------
+# xrdp renders at 32bpp by default and guacd then downsamples for the browser:
+# wasted CPU on both sides plus a bigger bitmap stream. Capping xrdp at the depth
+# the connections request keeps the whole path consistent. tcp_nodelay matters
+# most for the input path — with Nagle on, small keystroke/mouse frames get held
+# back waiting for company. insertafter guarantees the keys land inside
+# [Globals] even on an xrdp.ini that ships them commented out or not at all.
+- name: Tune xrdp for a low-latency remote desktop
+  ansible.builtin.lineinfile:
+    path: /etc/xrdp/xrdp.ini
+    regexp: "^#?\\s*{{ item.key }}\\s*="
+    line: "{{ item.key }}={{ item.value }}"
+    insertafter: '^\[Globals\]'
+    mode: "0644"
+  loop:
+    - { key: max_bpp, value: "{{ guacamole_xrdp_max_bpp }}" }
+    - { key: tcp_nodelay, value: "true" }
+    - { key: tcp_keepalive, value: "true" }
+    - { key: bitmap_compression, value: "true" }
+    # fastpath input+output shaves a round-trip off each event (xrdp default,
+    # pinned here so an image update cannot silently regress it).
+    - { key: use_fastpath, value: "both" }
+  loop_control:
+    label: "{{ item.key }}"
+  notify: Restart xrdp
+
+# XFCE turns on the xfwm4 compositor by default. Every shadow/transparency it
+# draws forces full-window redraws, which guacd must re-encode and ship to the
+# browser — the biggest single contributor to the "slightly laggy" feel over
+# RDP. box_move/box_resize additionally reduce dragging a window to a wireframe
+# outline instead of a continuous repaint of its contents.
+- name: Ensure the system-wide xfconf defaults directory exists
+  ansible.builtin.file:
+    path: /etc/xdg/xfce4/xfconf/xfce-perchannel-xml
+    state: directory
+    mode: "0755"
+  when: guacamole_tune_xfce | bool
+
+- name: Disable XFCE compositing and live window dragging
+  ansible.builtin.copy:
+    dest: /etc/xdg/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml
+    mode: "0644"
+    content: |
+      <?xml version="1.0" encoding="UTF-8"?>
+      <!-- Managed by Ansible (guacamole role) — tuned for RDP over a WAN. -->
+      <channel name="xfwm4" version="1.0">
+        <property name="general" type="empty">
+          <property name="use_compositing" type="bool" value="false"/>
+          <property name="box_move" type="bool" value="true"/>
+          <property name="box_resize" type="bool" value="true"/>
+          <property name="show_frame_shadow" type="bool" value="false"/>
+          <property name="show_popup_shadow" type="bool" value="false"/>
+        </property>
+      </channel>
+  when: guacamole_tune_xfce | bool
+
+# GTK's fade/slide animations repaint the same region several times per menu
+# opening — cheap locally, a burst of bitmaps over RDP. Unlike xfwm4.xml above,
+# xsettings.xml is shipped by the xfce4-settings package and carries the theme,
+# fonts and cursor settings, so this edits the one property in place instead of
+# rewriting the file. community.general.xml needs lxml on the target.
+- name: Ensure python3-lxml is present (needed to edit the xfconf XML)
+  ansible.builtin.apt:
+    name: python3-lxml
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  when: guacamole_tune_xfce | bool
+
+- name: Disable GTK animations in the desktop
+  community.general.xml:
+    path: /etc/xdg/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml
+    xpath: "/channel/property[@name='Gtk']/property[@name='EnableAnimations']"
+    attribute: "{{ item.key }}"
+    value: "{{ item.value }}"
+  loop:
+    - { key: "type", value: "bool" }
+    - { key: "value", value: "false" }
+  loop_control:
+    label: "{{ item.key }}"
+  when: guacamole_tune_xfce | bool
+
+# The files above are only *defaults*: xfconfd copies them into a participant's
+# home on first login and reads the copy from then on, so anyone who already
+# opened a desktop keeps the old compositing settings. Drop those two per-user
+# files (window-manager prefs only — regenerated from the tuned defaults at the
+# next login) so existing accounts get the tuning too.
+# Participant identities are recomputed here (rather than scanning /home, which
+# also holds the cloned training repos) so the task targets exactly the two
+# XFCE files and nothing else.
+- name: Build the list of desktop accounts to reset
+  ansible.builtin.set_fact:
+    guac_desktop_users: >-
+      {{ (range(user_start | int, (nb_users | int) + 1) | map('string')
+          | map('regex_replace', '^', user_prefix) | list)
+         + ([trainer_user] if trainer_user | default('') | length > 0 else []) }}
+  when:
+    - guacamole_tune_xfce | bool
+    - guacamole_reset_desktop_prefs | bool
+
+- name: Remove per-user XFCE prefs that would shadow the tuned defaults
+  ansible.builtin.file:
+    path: "/home/{{ item.0 }}/.config/xfce4/xfconf/xfce-perchannel-xml/{{ item.1 }}"
+    state: absent
+  loop: "{{ guac_desktop_users | default([]) | product(['xfwm4.xml', 'xsettings.xml']) | list }}"
+  loop_control:
+    label: "{{ item.0 }}/{{ item.1 }}"
+  when:
+    - guacamole_tune_xfce | bool
+    - guacamole_reset_desktop_prefs | bool
+
 # xrdp reads its TLS key as the 'xrdp' user; ssl-cert membership grants access.
 - name: Ensure the xrdp user can read its TLS key
   ansible.builtin.user:
