@@ -7,6 +7,79 @@
   vars:
     # Silence the interpreter-discovery warning (packer runs its own ansible.cfg).
     ansible_python_interpreter: auto_silent
+
+  # OS-level policy for the image, applied before any tooling is laid down.
+  # A training server must be frozen: whatever it boots with is what the
+  # participants get for the whole session. So the image catches up on distro
+  # updates ONCE here, at bake time, and then the automatic updaters are shut
+  # off for good.
+  #
+  # Both halves are needed. Scaleway refreshes ubuntu_noble/fedora rarely, so a
+  # VM boots ~100 packages behind however fresh our own bake is; without the
+  # upgrade below, freezing updates would freeze a stale system. And without the
+  # freeze, Ubuntu catches up on its own, unattended, mid-session: on 2026-07-22
+  # it pulled those ~100 packages at 06:11 and needrestart bounced xrdp, which
+  # killed every Guacamole desktop, made xrdp-sesman lose its session registry
+  # (orphan Xorg/XFCE processes then blocked every new login), and swapped the
+  # working Mozilla firefox .deb for the snap stub that cannot run under xrdp.
+  pre_tasks:
+    - name: Bring the base image fully up to date (Debian/Ubuntu)
+      ansible.builtin.apt:
+        upgrade: dist
+        update_cache: true
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Bring the base image fully up to date (Fedora) # noqa: package-latest
+      ansible.builtin.dnf:
+        name: "*"
+        state: latest
+        update_cache: true
+      when: ansible_facts['os_family'] == "RedHat"
+
+    - name: Disable the periodic apt upgrade machinery
+      ansible.builtin.copy:
+        dest: /etc/apt/apt.conf.d/99-training-no-auto-upgrades
+        mode: "0644"
+        content: |
+          // Managed by Ansible (image.yml).
+          APT::Periodic::Update-Package-Lists "0";
+          APT::Periodic::Download-Upgradeable-Packages "0";
+          APT::Periodic::Unattended-Upgrade "0";
+          APT::Periodic::AutocleanInterval "0";
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Mask the apt auto-upgrade units
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        enabled: false
+        state: stopped
+        masked: true
+      loop:
+        - apt-daily.timer
+        - apt-daily-upgrade.timer
+        - unattended-upgrades.service
+      when: ansible_facts['os_family'] == "Debian"
+
+    # Second belt: even a manual `apt install` during a session must never
+    # restart a running service behind the participants (needrestart restarts
+    # xrdp by default, which is what actually severed the desktops).
+    # 'l' = list what needs restarting, restart nothing.
+    - name: Ensure the needrestart drop-in directory exists
+      ansible.builtin.file:
+        path: /etc/needrestart/conf.d
+        state: directory
+        mode: "0755"
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Keep needrestart from bouncing services automatically
+      ansible.builtin.copy:
+        dest: /etc/needrestart/conf.d/99-training-no-restart.conf
+        mode: "0644"
+        content: |
+          # Managed by Ansible (image.yml).
+          $nrconf{restart} = 'l';
+      when: ansible_facts['os_family'] == "Debian"
+
   roles:
     - docker
     - base_tools

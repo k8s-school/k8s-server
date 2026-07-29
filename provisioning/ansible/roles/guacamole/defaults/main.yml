@@ -42,6 +42,38 @@ guacamole_ssh_port: 22
 # Set to false to have Guacamole prompt for it interactively.
 guacamole_embed_password: true
 
+# --- Latency / bandwidth tuning (rdp mode) ------------------------------------
+# guacd decodes RDP server-side and re-encodes it for the browser, so every
+# pixel the desktop redraws costs CPU *and* WAN bandwidth. The defaults below
+# trade eye candy for responsiveness — the usual complaint is a slight input
+# lag, and most of it comes from full-colour redraws plus XFCE compositing.
+#
+# Bits per pixel sent over RDP. 16 roughly halves the bitmap payload versus 24
+# with no practical loss for a terminal/browser desktop. Must stay <= the
+# max_bpp forced in xrdp.ini below.
+guacamole_color_depth: "16"
+
+# Ceiling xrdp advertises. Kept in sync with guacamole_color_depth so xrdp does
+# not render at 32bpp only for guacd to downsample.
+guacamole_xrdp_max_bpp: "16"
+
+# Drop the RDP eye candy the server would otherwise have to paint and stream:
+# wallpaper, window themes, font smoothing, live window dragging, compositing
+# and menu animations. Set false to get the full-fat desktop back.
+guacamole_rdp_lean_desktop: true
+
+# XFCE ships with the xfwm4 compositor on, which forces full-screen redraws for
+# shadows/transparency — the single biggest source of RDP sluggishness. This
+# writes system-wide xfconf defaults turning it (and GTK animations) off.
+guacamole_tune_xfce: true
+
+# System-wide xfconf defaults only apply to accounts that have no per-user copy
+# yet, and a participant who already opened a session has one. When true, those
+# stale per-user xfwm4/xsettings files are removed so the tuned defaults win;
+# only window-manager preferences are discarded, and XFCE regenerates them on
+# the next login. Set false to leave existing sessions untouched.
+guacamole_reset_desktop_prefs: true
+
 # --- Desktop (rdp mode only) --------------------------------------------------
 # Installed on the host so xrdp can hand each participant an XFCE session.
 guacamole_desktop_packages:
@@ -53,6 +85,32 @@ guacamole_desktop_packages:
 # Browser students launch from the desktop. Pulled from Mozilla's APT repo (the
 # Ubuntu 'firefox' package is a snap that doesn't run under xrdp).
 guacamole_browser_package: firefox
+
+# Bookmarks pushed to every account's Firefox (students + trainer) through the
+# enterprise policy file, so they appear on the bookmarks toolbar of a brand-new
+# profile without touching anyone's places.sqlite. Placement is "toolbar" or
+# "menu". Set to an empty list to ship no bookmarks.
+guacamole_firefox_bookmarks:
+  - Title: "K8s School"
+    URL: "https://k8s-school.fr"
+    Placement: "toolbar"
+
+# Keep the bookmarks toolbar visible, otherwise the entries above are hidden on
+# a fresh profile. Applied as a *default* so a participant can still hide it.
+guacamole_firefox_show_bookmarks_toolbar: true
+
+# --- Live desktop sessions (rdp mode only) ------------------------------------
+# Configuring xrdp restarts it, and a restart does NOT close the desktops it is
+# serving: they survive orphaned, and xfce4-session then refuses to open a new
+# one for the same account, locking the participant out until someone kills the
+# leftovers by hand. So the role closes live sessions up front instead.
+guacamole_close_live_sessions: true
+
+# When sessions are found, the play pauses and lists the accounts about to be
+# disconnected, so the operator can abort (Ctrl-C then A) rather than kick a
+# class mid-exercise. Pass -e guacamole_session_reset_confirmed=true for
+# unattended runs (CI, image bake, session bring-up before anyone connects).
+guacamole_session_reset_confirmed: false
 
 # --- SSH password authentication ----------------------------------------------
 # Make the host's sshd accept password auth, in BOTH modes: required by guacd in

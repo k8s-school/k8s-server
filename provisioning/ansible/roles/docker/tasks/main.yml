@@ -19,6 +19,7 @@
         name: python3-debian
         state: present
         update_cache: true
+        cache_valid_time: 3600
 
     - name: Add Docker apt repository (deb822, fetches the signing key)
       ansible.builtin.deb822_repository:
@@ -46,6 +47,31 @@
   ansible.builtin.dnf:
     name: [docker, lsb_release]
     state: present
+
+# Docker 29 enables the containerd image store by default on fresh installs.
+# `docker save` then emits an OCI *index* covering every architecture of a
+# multi-arch image, while only shipping the blobs of the local platform. kind
+# pipes that tar into `ctr images import --all-platforms`, which tries to
+# resolve the other architectures and dies with:
+#   ctr: content digest sha256:...: not found
+# That breaks the image preloading in the otel repo's up.sh for every student.
+# Reproduced on 2026-07-27 with kind 0.27 AND 0.30, so it is the store, not kind.
+# Pin the classic overlay2 store, which is what working local setups still use.
+- name: Keep the classic overlay2 image store (kind cannot load from containerd)
+  ansible.builtin.copy:
+    dest: /etc/docker/daemon.json
+    mode: "0644"
+    content: |
+      {
+        "features": {
+          "containerd-snapshotter": false
+        }
+      }
+  notify: Restart docker
+
+# The daemon must already run on overlay2 before anything pulls images.
+- name: Apply the daemon configuration before using docker
+  ansible.builtin.meta: flush_handlers
 
 # Socket first, then the service — the ordering that was missing in bash.
 - name: Enable and start docker.socket

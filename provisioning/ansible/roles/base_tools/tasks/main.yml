@@ -5,28 +5,8 @@
 
 - name: Install base OS packages
   ansible.builtin.package:
-    name: [git, curl, bash-completion, jq]
+    name: [git, curl, bash-completion, jq, tree]
     state: present
-
-# System-wide bash completion for every account (login shells), incl. future
-# users. Replaces the per-user .bashrc lines from the old kubectl install.
-- name: Enable kubectl and helm bash completion for all accounts
-  ansible.builtin.copy:
-    dest: /etc/profile.d/kubectl-helm-completion.sh
-    mode: "0644"
-    content: |
-      # Managed by Ansible (base_tools role).
-      # Bash-only (process substitution). /etc/profile.d/*.sh is also sourced by
-      # POSIX /bin/sh logins (e.g. xrdp's dash startwm.sh); without this guard the
-      # `<(...)` below is a syntax error that aborts the whole shell — which is
-      # what turned the Guacamole XFCE session into a black screen.
-      [ -n "$BASH_VERSION" ] || return 0
-      if command -v kubectl >/dev/null 2>&1; then
-        source <(kubectl completion bash)
-      fi
-      if command -v helm >/dev/null 2>&1; then
-        source <(helm completion bash)
-      fi
 
 - name: Install Go
   ansible.builtin.unarchive:
@@ -66,3 +46,118 @@
   ansible.builtin.command: /usr/local/bin/ktbx install kind
   args:
     creates: /usr/local/bin/kind
+
+# System-wide bash completion for every account, incl. users created later.
+# Must run after the binaries above: the scripts are generated from them, so a
+# tooling upgrade regenerates a matching completion (copy compares the content).
+#
+# /etc/bash_completion.d/ — NOT /etc/profile.d/ — is what makes this work in the
+# Guacamole desktop: profile.d is only sourced by *login* shells, and the XFCE
+# terminal spawns an interactive non-login bash, so completion was silently
+# missing there while it worked over SSH. bash-completion (installed above) is
+# loaded from /etc/bash.bashrc for every interactive shell and sources this
+# directory. Static files also drop the per-shell `source <(kubectl completion
+# bash)` fork, and with it the dash-syntax-error footgun that once blanked the
+# XFCE session.
+- name: Generate the kubectl and helm bash completion scripts
+  ansible.builtin.command: "/usr/local/bin/{{ item }} completion bash"
+  register: base_tools_completion
+  changed_when: false
+  loop: [kubectl, helm]
+
+- name: Install the completion scripts system-wide
+  ansible.builtin.copy:
+    dest: "/etc/bash_completion.d/{{ item.item }}"
+    content: "{{ item.stdout }}\n"
+    mode: "0644"
+  loop: "{{ base_tools_completion.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+# Superseded by the files above; remove it so completion is not loaded twice
+# (and so the process-substitution version stops running in login shells).
+- name: Remove the old profile.d completion drop-in
+  ansible.builtin.file:
+    path: /etc/profile.d/kubectl-helm-completion.sh
+    state: absent
+
+# VS Code — graphical editor for the XFCE/Guacamole desktops. It's Electron, so
+# each running instance costs ~300-600 MB RAM; on GP1-M (8 vCPU / 32 GB) that's
+# fine for the 4-5 concurrent session accounts (kind + Docker are the real RAM
+# sink, not the editors). Pulled from Microsoft's own repo so it stays a normal
+# apt/dnf package rather than a snap (snaps don't run under xrdp — see image.yml).
+
+# --- Debian/Ubuntu ---
+# deb822_repository needs the python3-debian library on the target. The docker
+# role installs it too, but repeat it here so base_tools stays self-contained
+# whatever the role order in image.yml.
+- name: Ensure python3-debian is present
+  ansible.builtin.apt:
+    name: python3-debian
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  when: ansible_facts['os_family'] == "Debian"
+
+- name: Add VS Code apt repository (deb822, fetches the signing key)
+  ansible.builtin.deb822_repository:
+    name: vscode
+    types: [deb]
+    uris: "https://packages.microsoft.com/repos/code"
+    suites: [stable]
+    components: [main]
+    architectures: [amd64, arm64, armhf]
+    signed_by: "https://packages.microsoft.com/keys/microsoft.asc"
+    state: present
+  when: ansible_facts['os_family'] == "Debian"
+
+- name: Install VS Code (Debian/Ubuntu)
+  ansible.builtin.apt:
+    name: code
+    state: present
+    update_cache: true
+  when: ansible_facts['os_family'] == "Debian"
+
+# --- Fedora ---
+- name: Import Microsoft RPM key for VS Code (Fedora)
+  ansible.builtin.rpm_key:
+    key: https://packages.microsoft.com/keys/microsoft.asc
+    state: present
+  when: ansible_facts['os_family'] == "RedHat"
+
+- name: Add VS Code yum repository (Fedora)
+  ansible.builtin.yum_repository:
+    name: vscode
+    description: Visual Studio Code
+    baseurl: https://packages.microsoft.com/yumrepos/vscode
+    gpgcheck: true
+    gpgkey: https://packages.microsoft.com/keys/microsoft.asc
+    enabled: true
+  when: ansible_facts['os_family'] == "RedHat"
+
+- name: Install VS Code (Fedora)
+  ansible.builtin.dnf:
+    name: code
+    state: present
+  when: ansible_facts['os_family'] == "RedHat"
+
+# Default settings baked into /etc/skel so every session account created later by
+# site.yml inherits them: kill telemetry, and pin update.mode=none so VS Code
+# never self-updates mid-session (same freeze policy as the apt updaters in
+# image.yml). Users can still tweak their own copy afterwards.
+- name: Create VS Code config directory in /etc/skel
+  ansible.builtin.file:
+    path: /etc/skel/.config/Code/User
+    state: directory
+    mode: "0755"
+
+- name: Provide default VS Code settings for all future users
+  ansible.builtin.copy:
+    dest: /etc/skel/.config/Code/User/settings.json
+    mode: "0644"
+    content: |
+      {
+        "telemetry.telemetryLevel": "off",
+        "update.mode": "none",
+        "workbench.startupEditor": "none"
+      }

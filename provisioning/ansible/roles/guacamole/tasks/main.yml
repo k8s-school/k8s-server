@@ -10,7 +10,15 @@
 # Depends on the docker role (docker-ce + the compose plugin). guacd reaches the
 # host through the host-gateway alias.
 
-# --- rdp mode: install the XFCE desktop + xrdp -------------------------------
+# --- rdp mode: close live desktops, then install XFCE + xrdp -----------------
+# Sessions first: configuring xrdp below restarts it, which would leave every
+# connected participant with an orphaned desktop they cannot reconnect to.
+- name: Close the live desktop sessions before touching xrdp
+  ansible.builtin.include_tasks: sessions.yml
+  when:
+    - guacamole_protocol == "rdp"
+    - guacamole_close_live_sessions | bool
+
 - name: Install the XFCE desktop and xrdp
   ansible.builtin.include_tasks: desktop.yml
   when: guacamole_protocol == "rdp"

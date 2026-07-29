@@ -89,13 +89,38 @@ CROSS JOIN LATERAL (VALUES
     ('security',      'any'),
     ('ignore-cert',   'true'),
     ('resize-method', 'display-update'),
-    ('color-depth',   '24'){{ '' }}
+{% if guacamole_rdp_lean_desktop %}
+    -- Performance flags: less for the server to redraw and for guacd to stream,
+    -- so input feels closer to real time over a WAN link. (Glyph caching is
+    -- deliberately left alone: it is off by default in 1.5.x because of FreeRDP
+    -- text-corruption bugs.)
+    ('enable-wallpaper',           'false'),
+    ('enable-theming',             'false'),
+    ('enable-font-smoothing',      'false'),
+    ('enable-full-window-drag',    'false'),
+    ('enable-desktop-composition', 'false'),
+    ('enable-menu-animations',     'false'),
+{% endif %}
+    ('color-depth',   '{{ guacamole_color_depth }}'){{ '' }}
 {% else %}
     ('color-scheme', 'gray-black'){{ '' }}
 {% endif %}
 ) AS v(pname, pvalue)
 ON CONFLICT (connection_id, parameter_name)
 DO UPDATE SET parameter_value = EXCLUDED.parameter_value;
+
+{% if guacamole_protocol == 'rdp' and not guacamole_rdp_lean_desktop %}
+-- 5b. The insert above only adds/updates rows, so turning the lean desktop back
+--     off has to remove the performance flags explicitly to stay convergent.
+DELETE FROM guacamole_connection_parameter p
+USING guacamole_connection c
+WHERE p.connection_id = c.connection_id
+  AND c.parent_id IS NULL
+  AND p.parameter_name IN (
+      'enable-wallpaper', 'enable-theming', 'enable-font-smoothing',
+      'enable-full-window-drag', 'enable-desktop-composition',
+      'enable-menu-animations');
+{% endif %}
 
 -- 6. Grant each participant READ (i.e. connect) on their own connection.
 INSERT INTO guacamole_connection_permission (entity_id, connection_id, permission)
