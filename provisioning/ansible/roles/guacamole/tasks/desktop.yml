@@ -55,9 +55,11 @@
       Pin: release o=Ubuntu
       Pin-Priority: -1
 
-- name: Install the XFCE desktop, xrdp and a browser
+- name: Install the XFCE desktop, xrdp, the emoji font and a browser
   ansible.builtin.apt:
-    name: "{{ guacamole_desktop_packages + [guacamole_browser_package] }}"
+    name: >-
+      {{ guacamole_desktop_packages + guacamole_desktop_fonts
+         + [guacamole_browser_package] }}
     state: present
     update_cache: true
 
@@ -223,6 +225,49 @@
   when:
     - guacamole_tune_xfce | bool
     - guacamole_reset_desktop_prefs | bool
+
+# --- Terminal theme -----------------------------------------------------------
+# One system-wide terminalrc for students and trainer alike. xfce4-terminal
+# reads $XDG_CONFIG_HOME first and falls back to /etc/xdg, and it only ever
+# writes the per-user copy when someone changes a setting through the UI — so
+# this is picked up by existing accounts without the reset dance the xfconf
+# defaults above need.
+- name: Ensure the system-wide xfce4-terminal config directory exists
+  ansible.builtin.file:
+    path: /etc/xdg/xfce4/terminal
+    state: directory
+    mode: "0755"
+  when: guacamole_terminal_theme | bool
+
+- name: Set the default terminal theme for every account
+  ansible.builtin.copy:
+    dest: /etc/xdg/xfce4/terminal/terminalrc
+    mode: "0644"
+    content: |
+      # Managed by Ansible (guacamole role) — defaults only, a participant can
+      # still override any of this from Edit > Preferences.
+      [Configuration]
+      # The two *UseSystem/UseTheme switches must be off, otherwise
+      # xfce4-terminal ignores the font and colours below and follows the GTK
+      # theme instead (font-use-system defaults to TRUE).
+      FontUseSystem=FALSE
+      FontName={{ guacamole_terminal_font }}
+      ColorUseTheme=FALSE
+      ColorForeground={{ guacamole_terminal_fg }}
+      ColorBackground={{ guacamole_terminal_bg }}
+      ColorCursor={{ guacamole_terminal_fg }}
+      ColorPalette={{ guacamole_terminal_palette | join(';') }}
+      # A blinking cursor is a repaint twice a second that guacd re-encodes and
+      # ships to the browser even on a completely idle desktop; a solid
+      # background keeps the whole window a flat colour to compress.
+      MiscCursorBlinks=FALSE
+      BackgroundMode=TERMINAL_BACKGROUND_SOLID
+      # Students paste multi-line command blocks out of the training docs all
+      # day, and the confirmation dialog stops every single one of them.
+      MiscShowUnsafePasteDialog=FALSE
+      # Long enough to scroll back to the start of a kubectl describe.
+      ScrollingLines=10000
+  when: guacamole_terminal_theme | bool
 
 # xrdp reads its TLS key as the 'xrdp' user; ssl-cert membership grants access.
 - name: Ensure the xrdp user can read its TLS key

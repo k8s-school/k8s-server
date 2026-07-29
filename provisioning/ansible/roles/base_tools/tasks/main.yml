@@ -81,6 +81,60 @@
     path: /etc/profile.d/kubectl-helm-completion.sh
     state: absent
 
+# --- Shell prompt -------------------------------------------------------------
+# The prompt logic lives in one file that every account sources, so tweaking it
+# later is a single edit rather than a rewrite of everyone's .bashrc.
+#
+# It cannot be installed the way the completion above is: /etc/bash.bashrc (and
+# anything it sources) runs BEFORE ~/.bashrc, and the distro ~/.bashrc assigns
+# PS1 unconditionally — it would win every time. Hence the source line appended
+# to the end of each .bashrc, in /etc/skel for the accounts site.yml creates and
+# in the existing homes by the participants/trainer roles.
+- name: Install the shared shell prompt
+  ansible.builtin.copy:
+    dest: /etc/training-prompt.sh
+    mode: "0644"
+    content: |
+      # Managed by Ansible (base_tools role). Sourced from every account's .bashrc.
+      #
+      # Two lines instead of the distro one-liner: between the hostname and a cwd
+      # like ~/k8s-basics/exercises/..., barely half the width was left for the
+      # command itself, and the wrapped result is unreadable on a projector.
+      # Colour also makes it obvious where one command's output ends and the next
+      # prompt begins — the usual confusion when a student pastes a block of
+      # commands out of the training docs.
+      #
+      # Deliberately plain: no git branch, no kubectl context. Both mean forking a
+      # process (or reading ~/.kube/config) before every single prompt, on a box
+      # already running everyone's kind clusters.
+
+      # Interactive shells only, and only where colour means anything.
+      case $- in *i*) ;; *) return ;; esac
+      case ${TERM:-dumb} in dumb) return ;; esac
+
+      if [ "$(id -u)" -eq 0 ]; then
+          __training_who='\[\e[1;31m\]'   # root in red: you are not a participant
+      else
+          __training_who='\[\e[1;32m\]'
+      fi
+
+      # Single quotes on the tail so \$ reaches PS1 intact (it renders as $, or #
+      # for root) instead of being eaten by the double quotes.
+      PS1="${__training_who}\u@\h\[\e[0m\] \[\e[1;34m\]\w\[\e[0m\]"'\n\$ '
+      unset __training_who
+
+      # Keep the window/tab title the distro prompt used to set.
+      case ${TERM} in
+          xterm*|rxvt*) PS1="\[\e]0;\u@\h: \w\a\]${PS1}" ;;
+      esac
+
+- name: Source the shared prompt from the skeleton .bashrc
+  ansible.builtin.blockinfile:
+    path: /etc/skel/.bashrc
+    marker: "# {mark} TRAINING PROMPT"
+    block: |
+      if [ -r /etc/training-prompt.sh ]; then . /etc/training-prompt.sh; fi
+
 # VS Code — graphical editor for the XFCE/Guacamole desktops. It's Electron, so
 # each running instance costs ~300-600 MB RAM; on GP1-M (8 vCPU / 32 GB) that's
 # fine for the 4-5 concurrent session accounts (kind + Docker are the real RAM

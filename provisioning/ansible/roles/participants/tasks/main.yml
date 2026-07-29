@@ -62,6 +62,21 @@
     label: "{{ item.name }}"
   when: per_user_cluster | default(false)
 
+# Accounts created above inherit this from /etc/skel (base_tools writes it into
+# the image). The task is here for the homes that predate the prompt — a server
+# booted on an older image, or re-provisioned for a second session.
+- name: Source the shared prompt from each participant's .bashrc
+  ansible.builtin.blockinfile:
+    path: "/home/{{ item.name }}/.bashrc"
+    marker: "# {mark} TRAINING PROMPT"
+    block: |
+      if [ -r /etc/training-prompt.sh ]; then . /etc/training-prompt.sh; fi
+    owner: "{{ item.name }}"
+    group: "{{ item.name }}"
+  loop: "{{ participants_all }}"
+  loop_control:
+    label: "{{ item.name }}"
+
 # Fedora only: relabel docker-mounted dirs for SELinux (was chcon in adduser.sh).
 - name: SELinux relabel of participant dirs
   community.general.sefcontext:

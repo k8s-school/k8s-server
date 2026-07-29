@@ -86,6 +86,56 @@ guacamole_desktop_packages:
 # Ubuntu 'firefox' package is a snap that doesn't run under xrdp).
 guacamole_browser_package: firefox
 
+# kind narrates cluster creation with emoji — "Ensuring node image 🖼",
+# "Preparing nodes 📦", "Writing configuration 📜", "Starting control-plane 🕹️",
+# "Installing CNI 🔌", "Installing StorageClass 💾", "Joining worker nodes 🚜",
+# then "Thanks for using kind! 😊 Have a nice day! 👋". The Ubuntu server image
+# carries no emoji font, so every one of them shows up as an empty tofu box in
+# the desktop terminal — the first thing a student sees of kind looks broken.
+# Installing Noto Color Emoji is the whole fix: its package drops a fontconfig
+# rule making it the fallback for the monospace alias, so xfce4-terminal and
+# VS Code's terminal both pick it up with no further configuration.
+guacamole_desktop_fonts:
+  - fonts-noto-color-emoji
+
+# --- Terminal theme (rdp mode only) -------------------------------------------
+# System-wide xfce4-terminal defaults, written to
+# /etc/xdg/xfce4/terminal/terminalrc. The terminal is where the training
+# actually happens, so it gets a readable dark theme — but nothing that costs a
+# redraw over RDP: no transparency, no background image, no blinking cursor.
+# xfce4-terminal only writes a per-user terminalrc once someone changes a
+# setting in the UI, so unlike the xfconf defaults above this also reaches
+# accounts that already opened a desktop. Set false to keep the stock look.
+guacamole_terminal_theme: true
+
+# Left on the fontconfig "Monospace" alias (DejaVu Sans Mono on Ubuntu): already
+# installed, and it stays crisp with RDP font smoothing off.
+guacamole_terminal_font: "Monospace 11"
+
+guacamole_terminal_bg: "#1c1c1c"
+guacamole_terminal_fg: "#d3d7cf"
+
+# Tango palette — the XFCE/GNOME classic. Contrast is high enough to survive the
+# 16 bpp RDP stream and a room projector, which the softer schemes (Nord,
+# Solarized) are not. Normal colours 0-7 first, then the bright ones 8-15.
+guacamole_terminal_palette:
+  - "#2e3436" # black
+  - "#cc0000" # red
+  - "#4e9a06" # green
+  - "#c4a000" # yellow
+  - "#3465a4" # blue
+  - "#75507b" # magenta
+  - "#06989a" # cyan
+  - "#d3d7cf" # white
+  - "#555753" # bright black
+  - "#ef2929" # bright red
+  - "#8ae234" # bright green
+  - "#fce94f" # bright yellow
+  - "#729fcf" # bright blue
+  - "#ad7fa8" # bright magenta
+  - "#34e2e2" # bright cyan
+  - "#eeeeec" # bright white
+
 # Bookmarks pushed to every account's Firefox (students + trainer) through the
 # enterprise policy file, so they appear on the bookmarks toolbar of a brand-new
 # profile without touching anyone's places.sqlite. Placement is "toolbar" or

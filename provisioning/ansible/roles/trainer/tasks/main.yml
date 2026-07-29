@@ -32,6 +32,17 @@
     group: "{{ trainer_user }}"
     mode: "0700"
 
+# Same as for the participants: /etc/skel covers a freshly created account, this
+# covers a home that predates the prompt.
+- name: Source the shared prompt from the trainer's .bashrc
+  ansible.builtin.blockinfile:
+    path: "/home/{{ trainer_user }}/.bashrc"
+    marker: "# {mark} TRAINING PROMPT"
+    block: |
+      if [ -r /etc/training-prompt.sh ]; then . /etc/training-prompt.sh; fi
+    owner: "{{ trainer_user }}"
+    group: "{{ trainer_user }}"
+
 - name: Clone / update the trainer repo
   become: true
   become_user: "{{ trainer_user }}"
