@@ -3,6 +3,11 @@ output "public_ip" {
   value       = scaleway_instance_ip.main.address
 }
 
+output "fqdn" {
+  description = "Public name of the training instance; empty when no dns_zone is declared."
+  value       = local.fqdn
+}
+
 output "instance_id" {
   value = scaleway_instance_server.main.id
 }

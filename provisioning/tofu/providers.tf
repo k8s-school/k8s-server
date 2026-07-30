@@ -20,3 +20,10 @@ terraform {
 # Leaving the block empty avoids the "multiple variable sources" warning when a
 # scw profile is also present.
 provider "scaleway" {}
+
+# No OVH provider here on purpose — the DNS record lives in its own root module,
+# tofu/dns/. OpenTofu configures a provider as soon as one of its resources
+# appears in the configuration (a `count = 0` or a conditional module does not
+# change that), and the OVH provider validates its credentials against the API
+# when it is configured. Declaring it here would therefore make OVH credentials
+# mandatory for every flavor, including the ones with no domain name at all.
