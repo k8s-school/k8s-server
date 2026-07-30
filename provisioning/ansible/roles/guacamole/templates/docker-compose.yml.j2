@@ -1,7 +1,12 @@
 # Managed by Ansible (guacamole role) — do not edit by hand.
 # Apache Guacamole, clientless remote-access gateway.
+{% if guacamole_tls_enabled | bool %}
+#   Web UI: https://{{ guacamole_fqdn }}/
+# Stack: caddy (TLS) + postgres (auth DB) + guacd (protocol proxy) + guacamole.
+{% else %}
 #   Web UI: http://<server>:{{ guacamole_http_port }}/guacamole
 # Stack: postgres (auth DB) + guacd (protocol proxy) + guacamole (web app).
+{% endif %}
 services:
   postgres:
     image: {{ guacamole_postgres_image }}
@@ -45,9 +50,44 @@ services:
       POSTGRESQL_USER: {{ guacamole_db_user }}
       POSTGRESQL_PASSWORD: {{ guacamole_db_password }}
       POSTGRESQL_AUTO_CREATE_ACCOUNTS: "false"
+{% if guacamole_tls_enabled | bool %}
+      # Serve the web app at / instead of /guacamole: behind Caddy the context
+      # buys nothing, and "training.k8s-school.fr" is shorter to dictate to a
+      # room than the same thing with a path glued to it.
+      WEBAPP_CONTEXT: ROOT
+    # No ports on purpose: the web app is reached through the compose network as
+    # guacamole:8080 and is not published on the host at all, so there is no way
+    # to reach it in clear text around Caddy.
+{% else %}
     ports:
       - "{{ guacamole_http_port }}:8080"
+{% endif %}
     restart: unless-stopped
+{% if guacamole_tls_enabled | bool %}
+
+  # Obtains and renews the Let's Encrypt certificate on its own, and needs port
+  # 80 to do it (HTTP-01 challenge), which is also where it serves the redirect
+  # to HTTPS.
+  caddy:
+    image: {{ guacamole_caddy_image }}
+    depends_on:
+      - guacamole
+    ports:
+      - "{{ guacamole_http_port }}:80"
+      - "{{ guacamole_https_port }}:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Holds the certificate and the ACME account key. Persisting it is tidy
+      # but not operationally important: re-issuing on a fresh VM is well within
+      # the Let's Encrypt limits (see docs/guacamole-https-plan.md).
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+{% endif %}
 
 volumes:
   pgdata:
+{% if guacamole_tls_enabled | bool %}
+  caddy_data:
+  caddy_config:
+{% endif %}
