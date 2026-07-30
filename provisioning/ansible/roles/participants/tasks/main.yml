@@ -48,18 +48,37 @@
   loop_control:
     label: "{{ item.name }}"
 
-- name: Set per-user training environment (CLUSTER_NAME + PORT_OFFSET)
+# Participants all use the same ports (8080 for the UIs, 8090 for their
+# micro-service...): what makes them collision-free on a shared machine is the
+# bind address, one loopback per account (student3 -> 127.0.0.3). The training
+# scripts read PF_ADDR/PF_HOST and pass '--address $PF_ADDR' to port-forward.
+- name: Set per-user training environment (CLUSTER_NAME + port-forward address)
   ansible.builtin.blockinfile:
     path: "/home/{{ item.name }}/.bashrc"
     marker: "# {mark} TRAINING ENV"
     block: |
       export CLUSTER_NAME={{ item.name }}
-      export PORT_OFFSET={{ item.index * 100 }}
+      export PF_ADDR=127.0.0.{{ item.index }}
+      export PF_HOST=localhost{{ item.index }}
     owner: "{{ item.name }}"
     group: "{{ item.name }}"
   loop: "{{ participants_all }}"
   loop_control:
     label: "{{ item.name }}"
+  when: per_user_cluster | default(false)
+
+# Makes 'http://localhost3:8080/' work in the browser (and in the URLs the
+# training scripts print). The name says what the address is - a loopback of
+# one's own - so a participant does not read it as another student's machine.
+# Purely cosmetic: without it the address itself is still reachable, which is
+# what scripts/env.sh falls back to.
+- name: Name each participant's loopback address in /etc/hosts
+  ansible.builtin.blockinfile:
+    path: /etc/hosts
+    marker: "# {mark} TRAINING PARTICIPANT ADDRESSES"
+    block: |
+      {% for p in participants_all %}127.0.0.{{ p.index }} localhost{{ p.index }}
+      {% endfor %}127.0.0.200 localhost200
   when: per_user_cluster | default(false)
 
 # Accounts created above inherit this from /etc/skel (base_tools writes it into

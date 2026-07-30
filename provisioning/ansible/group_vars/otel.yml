@@ -1,6 +1,11 @@
 # OpenTelemetry training: one account + one kind cluster per student.
 # studentN accounts + the 'trainer' account come from all/vars.yml.
-# 20 students is enough for this training (overrides the default of 30).
+#
+# Sizing, measured on a running lab (26 demo pods + load generator): one
+# participant's stack costs ~6.4 GiB of RAM, ~1.7 vCPU and ~11 GB of images in
+# its kind node. On the GP1-M booted by envs/otel.tfvars (16 vCPU / 64 GiB /
+# 100 GB disk) that is ~8 concurrent stacks on RAM, and the disk runs out
+# first - raise root_volume_size_gb before raising this.
 nb_users: 20
 repo: "otel"
 repo_dest: ".ktbx/homefs/otel"
@@ -8,8 +13,10 @@ repo_dest: ".ktbx/homefs/otel"
 trainer_repo: "otel"
 extra_groups: ["docker", "adm"]
 
-# Each student gets CLUSTER_NAME + PORT_OFFSET in their .bashrc, and creates
-# their own cluster via the otel repo's up.sh.
+# Each student gets CLUSTER_NAME + PF_ADDR/PF_HOST in their .bashrc, and
+# creates their own cluster via the otel repo's up.sh. PF_ADDR is the loopback
+# address their port-forwards bind to (student3 -> 127.0.0.3), so everyone can
+# use the same ports as in the labs without colliding.
 per_user_cluster: true
 
 # Cluster provisioning done at session time (helm is baked; students self-serve).
