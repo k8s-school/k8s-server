@@ -49,3 +49,23 @@ variable "ssh_public_key_path" {
   type        = string
   default     = "~/.ssh/id_rsa.pub"
 }
+
+# The two variables below only *name* the server: the record itself is created
+# by the tofu/dns/ root module, which reads them from this same tfvars file
+# through `make dns`. They are declared here because this is where the Ansible
+# inventory is written, and Ansible needs the name to know it must serve HTTPS.
+variable "dns_zone" {
+  description = <<-EOT
+    OVH-hosted DNS zone the training record belongs to, e.g. "k8s-school.fr".
+    Empty (the default) means the server has no public name: no record is
+    created and Guacamole is served over plain HTTP on the IP.
+  EOT
+  type        = string
+  default     = ""
+}
+
+variable "dns_subdomain" {
+  description = "Record name inside dns_zone; the server's FQDN is <dns_subdomain>.<dns_zone>."
+  type        = string
+  default     = "training"
+}
