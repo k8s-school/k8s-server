@@ -97,12 +97,14 @@
     content: |
       # Managed by Ansible (base_tools role). Sourced from every account's .bashrc.
       #
-      # Two lines instead of the distro one-liner: between the hostname and a cwd
-      # like ~/k8s-basics/exercises/..., barely half the width was left for the
-      # command itself, and the wrapped result is unreadable on a projector.
-      # Colour also makes it obvious where one command's output ends and the next
-      # prompt begins — the usual confusion when a student pastes a block of
-      # commands out of the training docs.
+      # One line, coloured. Colour makes it obvious where one command's output
+      # ends and the next prompt begins — the usual confusion when a student
+      # pastes a block of commands out of the training docs.
+      #
+      # The width problem that a cwd like ~/k8s-basics/exercises/otel/step3 used
+      # to cause is handled by PROMPT_DIRTRIM rather than by a second prompt
+      # line: bash elides the leading components itself (.../otel/step3), so the
+      # command keeps most of the width without costing a line on every prompt.
       #
       # Deliberately plain: no git branch, no kubectl context. Both mean forking a
       # process (or reading ~/.kube/config) before every single prompt, on a box
@@ -118,9 +120,12 @@
           __training_who='\[\e[1;32m\]'
       fi
 
+      # Keep the last two components of the cwd; bash renders the rest as "...".
+      PROMPT_DIRTRIM=2
+
       # Single quotes on the tail so \$ reaches PS1 intact (it renders as $, or #
       # for root) instead of being eaten by the double quotes.
-      PS1="${__training_who}\u@\h\[\e[0m\] \[\e[1;34m\]\w\[\e[0m\]"'\n\$ '
+      PS1="${__training_who}\u@\h\[\e[0m\] \[\e[1;34m\]\w\[\e[0m\]"' \$ '
       unset __training_who
 
       # Keep the window/tab title the distro prompt used to set.
