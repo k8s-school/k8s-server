@@ -1,0 +1,135 @@
+{#
+  Firefox home page for every training account, served from a local file:// URL
+  so it works even if the room's Internet is down.
+
+  The shortcut table is rendered from guacamole_terminal_accels, the same
+  variable that produces /etc/xdg/xfce4/terminal/accels.scm — the documentation
+  cannot drift away from what the terminal actually does.
+#}
+{# GTK accel syntax -> one <kbd> per physical key, labelled as a French keyboard
+   prints them. Separate boxes because "Alt + +" reads as a typo otherwise. #}
+{% macro keys(accel) -%}
+{%- set mods = [] -%}
+{%- if '<Primary>' in accel %}{% set _ = mods.append('Ctrl') %}{% endif -%}
+{%- if '<Alt>' in accel %}{% set _ = mods.append('Alt') %}{% endif -%}
+{%- if '<Shift>' in accel %}{% set _ = mods.append('Maj') %}{% endif -%}
+{%- set key = accel | replace('<Primary>', '') | replace('<Alt>', '')
+                    | replace('<Shift>', '') | replace('Page_Up', 'Page ↑')
+                    | replace('Page_Down', 'Page ↓') | replace('Insert', 'Inser')
+                    | replace('plus', '+') | replace('minus', '−')
+                    | replace('equal', '=') | title -%}
+{% for mod in mods %}<kbd>{{ mod }}</kbd> + {% endfor %}<kbd>{{ key }}</kbd>
+{%- endmacro %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>{{ guacamole_welcome_title }}</title>
+<style>
+  :root { color-scheme: dark; }
+  body {
+    margin: 0; padding: 2.5rem 1.5rem;
+    background: {{ guacamole_terminal_bg }}; color: {{ guacamole_terminal_fg }};
+    font-family: system-ui, sans-serif; font-size: 17px; line-height: 1.5;
+  }
+  main { max-width: 60rem; margin: 0 auto; }
+  h1 { font-size: 1.8rem; margin: 0 0 .3rem; color: #fff; }
+  .sub { color: #9aa0a6; margin: 0 0 2.5rem; }
+  h2 {
+    font-size: 1.15rem; margin: 2.2rem 0 .8rem; color: #8ae234;
+    border-bottom: 1px solid #333; padding-bottom: .4rem;
+  }
+  table { border-collapse: collapse; width: 100%; }
+  td { padding: .45rem .6rem; border-bottom: 1px solid #2a2a2a; vertical-align: top; }
+  td:first-child { width: 15rem; }
+  kbd {
+    background: #2e3436; border: 1px solid #555753; border-bottom-width: 2px;
+    border-radius: 4px; padding: .15rem .45rem; font-size: .95em;
+    font-family: monospace; white-space: nowrap; color: #eeeeec;
+  }
+  .note { color: #9aa0a6; font-size: .92em; }
+  .why {
+    background: #26282a; border-left: 3px solid #c4a000;
+    padding: .8rem 1rem; margin: 1rem 0; border-radius: 0 4px 4px 0;
+  }
+  a { color: #729fcf; }
+  ul { padding-left: 1.2rem; }
+  li { margin: .35rem 0; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>{{ guacamole_welcome_title }}</h1>
+<p class="sub">Ce bureau tourne sur le serveur de formation et s'affiche dans votre
+navigateur. Voici les quelques raccourcis qui en diffèrent.</p>
+
+<h2>Terminal</h2>
+<table>
+{% for action, label in guacamole_welcome_accel_labels.items() %}
+{% if action in guacamole_terminal_accels %}
+  <tr>
+    <td>{{ keys(guacamole_terminal_accels[action]) }}</td>
+    <td>{{ label }}</td>
+  </tr>
+{% endif %}
+{% endfor %}
+  <tr>
+    <td><kbd>Ctrl</kbd> + molette</td>
+    <td>Agrandir ou réduire la police</td>
+  </tr>
+  <tr>
+    <td>Sélection, puis clic du milieu</td>
+    <td>Copier, puis coller — sans passer par le clavier</td>
+  </tr>
+</table>
+<p class="note">Tout reste accessible à la souris : la barre de menus
+(<em>Fichier&nbsp;&gt; Nouvel onglet</em>, <em>Affichage&nbsp;&gt; Zoom</em>) et le
+bouton <strong>+</strong> de la barre d'onglets.</p>
+
+<div class="why">
+  <strong>Pourquoi pas les raccourcis habituels&nbsp;?</strong> Le bureau
+  s'affiche dans un onglet de votre navigateur, et celui-ci intercepte
+  <kbd>Ctrl</kbd>+<kbd>Maj</kbd>+<kbd>T</kbd>, <kbd>Ctrl</kbd>+<kbd>+</kbd> et
+  <kbd>Ctrl</kbd>+<kbd>Maj</kbd>+<kbd>C</kbd> avant qu'ils n'atteignent le
+  serveur. Les touches ci-dessus, elles, passent.
+</div>
+
+<h2>Copier-coller depuis votre propre machine</h2>
+<p>Le presse-papiers de votre ordinateur et celui du bureau distant sont
+séparés. Pour transférer du texte&nbsp;:</p>
+<ul>
+  <li>appuyez sur <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Maj</kbd> pour ouvrir le
+      panneau latéral&nbsp;;</li>
+  <li>collez votre texte dans la zone <em>Presse-papiers</em>&nbsp;;</li>
+  <li>refermez le panneau avec <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Maj</kbd>,
+      puis collez dans le terminal avec {{ keys(guacamole_terminal_accels['paste'] | default('<Shift>Insert')) }}.</li>
+</ul>
+<p class="note">Dans l'autre sens, sélectionnez le texte dans le bureau distant
+puis récupérez-le dans ce même panneau.</p>
+
+{# Same list as the bookmarks toolbar, from the same variable — one place to edit. #}
+{% if guacamole_firefox_bookmarks | length > 0 %}
+<h2>Liens utiles</h2>
+<ul>
+{% for folder, entries in guacamole_firefox_bookmarks | groupby('Folder', default='') %}
+  {% if folder %}
+  <li>{{ folder }}
+    <ul>
+    {% for entry in entries %}
+      <li><a href="{{ entry.URL }}">{{ entry.Title }}</a></li>
+    {% endfor %}
+    </ul>
+  </li>
+  {% else %}
+    {% for entry in entries %}
+  <li><a href="{{ entry.URL }}">{{ entry.Title }}</a></li>
+    {% endfor %}
+  {% endif %}
+{% endfor %}
+</ul>
+{% endif %}
+
+</main>
+</body>
+</html>
