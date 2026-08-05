@@ -140,9 +140,37 @@ guacamole_terminal_palette:
 # enterprise policy file, so they appear on the bookmarks toolbar of a brand-new
 # profile without touching anyone's places.sqlite. Placement is "toolbar" or
 # "menu". Set to an empty list to ship no bookmarks.
+#
+# One folder per training track rather than a flat row: the toolbar stays
+# readable, and a student hunting for "the OTel doc" opens one menu instead of
+# scanning six titles. Firefox renders the entries in the order below, and each
+# folder leads with our own lab — that is where a participant should land first,
+# the upstream docs being the reference they fall back to.
 guacamole_firefox_bookmarks:
   - Title: "K8s School"
     URL: "https://k8s-school.fr"
+    Placement: "toolbar"
+
+  - Title: "Labs Kubernetes"
+    URL: "https://k8s-school.fr/labs/k8s"
+    Folder: "Kubernetes"
+    Placement: "toolbar"
+  - Title: "Documentation Kubernetes"
+    URL: "https://kubernetes.io/docs/home/"
+    Folder: "Kubernetes"
+    Placement: "toolbar"
+
+  - Title: "Labs OpenTelemetry"
+    URL: "https://k8s-school.fr/labs/otel"
+    Folder: "OpenTelemetry"
+    Placement: "toolbar"
+  - Title: "Documentation OpenTelemetry"
+    URL: "https://opentelemetry.io/docs/"
+    Folder: "OpenTelemetry"
+    Placement: "toolbar"
+  - Title: "Démo OpenTelemetry"
+    URL: "https://opentelemetry.io/docs/demo/"
+    Folder: "OpenTelemetry"
     Placement: "toolbar"
 
 # Keep the bookmarks toolbar visible, otherwise the entries above are hidden on
