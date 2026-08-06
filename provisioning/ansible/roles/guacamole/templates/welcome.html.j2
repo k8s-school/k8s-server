@@ -112,20 +112,21 @@ puis récupérez-le dans ce même panneau.</p>
 {% if guacamole_firefox_bookmarks | length > 0 %}
 <h2>Liens utiles</h2>
 <ul>
-{% for folder, entries in guacamole_firefox_bookmarks | groupby('Folder', default='') %}
-  {% if folder %}
+{# selectattr/rejectattr rather than groupby(default=...): Ansible's Jinja
+   undefined raises on a missing attribute instead of falling back to the
+   default, so a bookmark with no Folder blows the whole template up. #}
+{% for entry in guacamole_firefox_bookmarks | rejectattr('Folder', 'defined') %}
+  <li><a href="{{ entry.URL }}">{{ entry.Title }}</a></li>
+{% endfor %}
+{% set foldered = guacamole_firefox_bookmarks | selectattr('Folder', 'defined') | list %}
+{% for folder in foldered | map(attribute='Folder') | unique %}
   <li>{{ folder }}
     <ul>
-    {% for entry in entries %}
+    {% for entry in foldered | selectattr('Folder', 'equalto', folder) %}
       <li><a href="{{ entry.URL }}">{{ entry.Title }}</a></li>
     {% endfor %}
     </ul>
   </li>
-  {% else %}
-    {% for entry in entries %}
-  <li><a href="{{ entry.URL }}">{{ entry.Title }}</a></li>
-    {% endfor %}
-  {% endif %}
 {% endfor %}
 </ul>
 {% endif %}
