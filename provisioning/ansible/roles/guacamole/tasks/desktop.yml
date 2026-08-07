@@ -117,19 +117,45 @@
     mode: "0644"
   when: guacamole_welcome_page | bool
 
+# Assembled as facts rather than inline below: with the welcome page bookmark
+# and the import button both optional, the expression inside `content` stopped
+# being readable.
+#
+# The welcome page leads the toolbar — it is the entry a lost participant needs
+# first, and Firefox lays the bookmarks out in the order given here.
+- name: Build the Firefox bookmark list
+  ansible.builtin.set_fact:
+    guac_firefox_bookmarks: >-
+      {{ ([{'Title': guacamole_welcome_bookmark_title,
+            'URL': 'file://' ~ guacamole_welcome_path,
+            'Placement': 'toolbar'}] if guacamole_welcome_page | bool else [])
+         + guacamole_firefox_bookmarks }}
+
+# Firefox puts an "Import bookmarks…" button first on the toolbar of every new
+# profile, ahead of our own entries — pointless here, where the bookmarks are
+# pushed by this very policy file. There is no policy to remove it, but the
+# button is only added when browser.bookmarks.addedImportButton is still unset,
+# so seeding it to true keeps it away. This lands at *profile creation*: an
+# account that already opened Firefox keeps its button (in that case, delete
+# ~/.mozilla or right-click > Remove from toolbar).
+- name: Build the Firefox preference set
+  ansible.builtin.set_fact:
+    guac_firefox_prefs: >-
+      {{ {'browser.toolbars.bookmarks.visibility': {
+             'Value': 'always' if guacamole_firefox_show_bookmarks_toolbar else 'newtab',
+             'Status': 'default'}}
+         | combine({'browser.bookmarks.addedImportButton': {
+             'Value': true, 'Status': 'default'}}
+           if guacamole_firefox_hide_import_button | bool else {}) }}
+
 - name: Push the shared Firefox bookmarks to every account
   ansible.builtin.copy:
     dest: /etc/firefox/policies/policies.json
     mode: "0644"
     content: |
       {{ {'policies': {
-             'Bookmarks': guacamole_firefox_bookmarks,
-             'Preferences': {
-               'browser.toolbars.bookmarks.visibility': {
-                 'Value': 'always' if guacamole_firefox_show_bookmarks_toolbar else 'newtab',
-                 'Status': 'default'
-               }
-             }
+             'Bookmarks': guac_firefox_bookmarks,
+             'Preferences': guac_firefox_prefs
            } | combine({'Homepage': {
                  'URL': 'file://' ~ guacamole_welcome_path,
                  'StartPage': 'homepage',

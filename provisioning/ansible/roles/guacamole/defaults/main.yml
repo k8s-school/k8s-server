@@ -194,6 +194,16 @@ guacamole_welcome_page: true
 guacamole_welcome_title: "Bienvenue sur votre bureau de formation"
 guacamole_welcome_path: /usr/local/share/k8s-school/welcome.html
 
+# The same page also gets a bookmark, first on the toolbar: the home page is
+# only seen at startup, and a participant who has since browsed elsewhere needs
+# a way back to it that does not involve retyping a file:// path.
+guacamole_welcome_bookmark_title: "Aide & raccourcis"
+
+# Drop Firefox's "Import bookmarks…" button from the toolbar. See the task for
+# why it is a preference and not a policy — and note it only takes effect on a
+# profile that does not exist yet.
+guacamole_firefox_hide_import_button: true
+
 # Which accels get a row on that page, in display order, with the wording the
 # participants read. An action missing from guacamole_terminal_accels is simply
 # skipped, so trimming the accel map never leaves a stale line behind.
