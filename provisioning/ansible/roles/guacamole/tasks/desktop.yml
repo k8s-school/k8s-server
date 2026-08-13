@@ -100,20 +100,68 @@
     state: directory
     mode: "0755"
 
+# The welcome page documents the terminal shortcuts further down, and is served
+# from a local file so it still opens when the training room's Internet does not.
+# Written before policies.json, which points Firefox at it.
+- name: Ensure the welcome page directory exists
+  ansible.builtin.file:
+    path: "{{ guacamole_welcome_path | dirname }}"
+    state: directory
+    mode: "0755"
+  when: guacamole_welcome_page | bool
+
+- name: Render the welcome page
+  ansible.builtin.template:
+    src: welcome.html.j2
+    dest: "{{ guacamole_welcome_path }}"
+    mode: "0644"
+  when: guacamole_welcome_page | bool
+
+# Assembled as facts rather than inline below: with the welcome page bookmark
+# and the import button both optional, the expression inside `content` stopped
+# being readable.
+#
+# The welcome page leads the toolbar — it is the entry a lost participant needs
+# first, and Firefox lays the bookmarks out in the order given here.
+- name: Build the Firefox bookmark list
+  ansible.builtin.set_fact:
+    guac_firefox_bookmarks: >-
+      {{ ([{'Title': guacamole_welcome_bookmark_title,
+            'URL': 'file://' ~ guacamole_welcome_path,
+            'Placement': 'toolbar'}] if guacamole_welcome_page | bool else [])
+         + guacamole_firefox_bookmarks }}
+
+# Firefox puts an "Import bookmarks…" button first on the toolbar of every new
+# profile, ahead of our own entries — pointless here, where the bookmarks are
+# pushed by this very policy file. There is no policy to remove it, but the
+# button is only added when browser.bookmarks.addedImportButton is still unset,
+# so seeding it to true keeps it away. This lands at *profile creation*: an
+# account that already opened Firefox keeps its button (in that case, delete
+# ~/.mozilla or right-click > Remove from toolbar).
+- name: Build the Firefox preference set
+  ansible.builtin.set_fact:
+    guac_firefox_prefs: >-
+      {{ {'browser.toolbars.bookmarks.visibility': {
+             'Value': 'always' if guacamole_firefox_show_bookmarks_toolbar else 'newtab',
+             'Status': 'default'}}
+         | combine({'browser.bookmarks.addedImportButton': {
+             'Value': true, 'Status': 'default'}}
+           if guacamole_firefox_hide_import_button | bool else {}) }}
+
 - name: Push the shared Firefox bookmarks to every account
   ansible.builtin.copy:
     dest: /etc/firefox/policies/policies.json
     mode: "0644"
     content: |
       {{ {'policies': {
-             'Bookmarks': guacamole_firefox_bookmarks,
-             'Preferences': {
-               'browser.toolbars.bookmarks.visibility': {
-                 'Value': 'always' if guacamole_firefox_show_bookmarks_toolbar else 'newtab',
-                 'Status': 'default'
-               }
-             }
-           }} | to_nice_json }}
+             'Bookmarks': guac_firefox_bookmarks,
+             'Preferences': guac_firefox_prefs
+           } | combine({'Homepage': {
+                 'URL': 'file://' ~ guacamole_welcome_path,
+                 'StartPage': 'homepage',
+                 'Locked': false
+               }} if guacamole_welcome_page | bool else {})
+          } | to_nice_json }}
 
 # --- Latency tuning ----------------------------------------------------------
 # xrdp renders at 32bpp by default and guacd then downsamples for the browser:
@@ -203,17 +251,16 @@
 # files (window-manager prefs only — regenerated from the tuned defaults at the
 # next login) so existing accounts get the tuning too.
 # Participant identities are recomputed here (rather than scanning /home, which
-# also holds the cloned training repos) so the task targets exactly the two
-# XFCE files and nothing else.
+# also holds the cloned training repos) so the tasks target exactly the files
+# they mean to and nothing else. The list is reused further down for the
+# terminal accel map, hence no dependency on guacamole_tune_xfce.
 - name: Build the list of desktop accounts to reset
   ansible.builtin.set_fact:
     guac_desktop_users: >-
       {{ (range(user_start | int, (nb_users | int) + 1) | map('string')
           | map('regex_replace', '^', user_prefix) | list)
          + ([trainer_user] if trainer_user | default('') | length > 0 else []) }}
-  when:
-    - guacamole_tune_xfce | bool
-    - guacamole_reset_desktop_prefs | bool
+  when: guacamole_reset_desktop_prefs | bool
 
 - name: Remove per-user XFCE prefs that would shadow the tuned defaults
   ansible.builtin.file:
@@ -225,6 +272,33 @@
   when:
     - guacamole_tune_xfce | bool
     - guacamole_reset_desktop_prefs | bool
+
+# --- Terminal emulator --------------------------------------------------------
+# Every "Terminal" entry in XFCE (panel launcher, Applications menu, Ctrl+Alt+T,
+# Thunar's "Open Terminal Here") runs `exo-open --launch TerminalEmulator`, which
+# resolves through helpers.rc. Ubuntu ships it pointing at Debian's
+# x-terminal-emulator alternative — and that alternative, in auto mode, resolves
+# to *zutty*: same priority 40 as xfce4-terminal.wrapper, and it wins. zutty is a
+# deliberately minimal emulator with no menubar, no tabs and no zoom, so every
+# instruction about "File > New Tab" or a keyboard shortcut was landing on a
+# terminal that has none of it — and the terminalrc below was being written for
+# an emulator nobody ever launched.
+#
+# Both knobs are pinned: helpers.rc for everything going through exo, and the
+# alternative itself for anything calling x-terminal-emulator directly.
+- name: Make xfce4-terminal the preferred XFCE terminal emulator
+  ansible.builtin.lineinfile:
+    path: /etc/xdg/xfce4/helpers.rc
+    regexp: '^TerminalEmulator='
+    line: "TerminalEmulator=xfce4-terminal"
+    mode: "0644"
+  when: guacamole_terminal_theme | bool
+
+- name: Point the x-terminal-emulator alternative at xfce4-terminal
+  community.general.alternatives:
+    name: x-terminal-emulator
+    path: /usr/bin/xfce4-terminal.wrapper
+  when: guacamole_terminal_theme | bool
 
 # --- Terminal theme -----------------------------------------------------------
 # One system-wide terminalrc for students and trainer alike. xfce4-terminal
@@ -267,7 +341,59 @@
       MiscShowUnsafePasteDialog=FALSE
       # Long enough to scroll back to the start of a kubectl describe.
       ScrollingLines=10000
+      # Tabs and font zoom, reachable with the mouse. xfce4-terminal has had
+      # both all along, but the desktop is displayed *inside a browser tab* by
+      # Guacamole, and the browser claims their shortcuts first: Ctrl+Shift+T
+      # reopens the last browser tab, Ctrl+plus/minus zooms the browser page.
+      # Neither keystroke ever reaches the terminal, so a participant who does
+      # not go hunting through the menus concludes the terminal cannot do it.
+      # Hence: menubar always up (File > New Tab, View > Zoom In), and the tab
+      # bar shown even with a single tab so its "+" button is on screen from
+      # the start. Both are pinned rather than left to the upstream defaults,
+      # which differ between versions. The keyboard path is restored separately
+      # by the accels.scm below, and the menus advertise the new keys.
+      MiscMenubarDefault=TRUE
+      MiscAlwaysShowTabs=TRUE
+      MiscTabCloseButtons=TRUE
+      # Ctrl+mouse-wheel as a second way to resize the font, for the sessions
+      # where the browser lets the combination through to the canvas.
+      MiscMouseWheelZoom=TRUE
   when: guacamole_terminal_theme | bool
+
+# ...and the keyboard path for the same two actions. GTK loads the accel map
+# from the first xfce4/terminal/accels.scm found in $XDG_CONFIG_HOME then
+# $XDG_CONFIG_DIRS, so /etc/xdg serves every account until someone edits a
+# shortcut through the UI (which writes their own copy). See
+# guacamole_terminal_accels for why the stock bindings had to be replaced.
+- name: Rebind the terminal shortcuts the browser steals
+  ansible.builtin.copy:
+    dest: /etc/xdg/xfce4/terminal/accels.scm
+    mode: "0644"
+    content: |
+      ; Managed by Ansible (guacamole role).
+      {% for action, accel in guacamole_terminal_accels | dictsort %}
+      (gtk_accel_path "<Actions>/terminal-window/{{ action }}" "{{ accel }}")
+      {% endfor %}
+  when:
+    - guacamole_terminal_theme | bool
+    - guacamole_terminal_accels | length > 0
+
+# Same shadowing rule as terminalrc: xfce4-terminal writes its own
+# ~/.config/xfce4/terminal/accels.scm the moment someone rebinds a key through
+# Preferences > Shortcuts, and that copy then wins over /etc/xdg for good —
+# later changes to the file above would be silently ignored for that account.
+# (Closing the terminal alone does not create it: verified on 2026-08-05, the
+# homes stayed clean across a full quit/relaunch cycle.) Drop the copies; they
+# are regenerated from /etc/xdg at the next launch.
+- name: Drop the per-user accel maps that shadow the system one
+  ansible.builtin.file:
+    path: "/home/{{ item }}/.config/xfce4/terminal/accels.scm"
+    state: absent
+  loop: "{{ guac_desktop_users | default([]) }}"
+  when:
+    - guacamole_terminal_theme | bool
+    - guacamole_terminal_accels | length > 0
+    - guacamole_reset_desktop_prefs | bool
 
 # xrdp reads its TLS key as the 'xrdp' user; ssl-cert membership grants access.
 - name: Ensure the xrdp user can read its TLS key

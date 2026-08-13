@@ -136,13 +136,123 @@ guacamole_terminal_palette:
   - "#34e2e2" # bright cyan
   - "#eeeeec" # bright white
 
+# Keyboard shortcuts written to /etc/xdg/xfce4/terminal/accels.scm (GTK accel
+# map syntax). The stock ones are unusable here: the desktop is displayed inside
+# a browser tab by Guacamole, and Chrome/Firefox reserve Ctrl+Shift+T (reopen
+# closed browser tab) and Ctrl+plus/minus (zoom the page) at a level no web app
+# can intercept — those keystrokes never reach the remote terminal at all.
+#
+# Same story for copy/paste: the terminal's Ctrl+Shift+C / Ctrl+Shift+V open the
+# browser's element inspector instead.
+#
+# The bindings below were picked among the keys the browser does NOT claim, and
+# verified through Guacamole on 2026-08-05: Alt+letter/Alt+symbol combinations
+# reach the remote desktop intact, and the classic Ctrl+Insert / Shift+Insert
+# pair is untouched by any browser. Everything remains
+# reachable with the mouse too (menubar, tab bar "+", Ctrl+mouse wheel,
+# select-to-copy then middle-click-to-paste), so this is the fast path, not the
+# only one. Set to an empty dict to keep the stock accel map.
+#
+# Note this is the *desktop's* clipboard, shared between the remote Firefox and
+# the remote terminal. Copying from the participant's own machine into the
+# session is a Guacamole matter, not a terminal one: the browser only hands its
+# clipboard to Guacamole over HTTPS, so on plain HTTP it goes through the
+# Ctrl+Alt+Shift side panel.
+guacamole_terminal_accels:
+  # Tabs. Alt+N opens one, Alt+Page Up/Down walk left/right — the terminal
+  # convention is Ctrl+Page Up/Down, but the browser uses that to switch its own
+  # tabs. Function keys were the first attempt and had to be dropped: on a
+  # laptop F2 needs the Fn key, which not every participant has to hand.
+  #
+  # N, not the obvious T: with the menubar visible, Alt+letter first matches a
+  # menu mnemonic, and GTK gives the menu priority over the accelerator — Alt+T
+  # just dropped down the Terminal menu. Whatever letter is used here must miss
+  # every menu title in both locales the image can run in: F/E/V/T/B/H in
+  # English, F/É/A/T/O/D in French.
+  new-tab: "<Alt>n"
+  prev-tab: "<Alt>Page_Up"
+  next-tab: "<Alt>Page_Down"
+  # Font size. Alt+= is the AZERTY-friendly twin of Alt+plus: on a French
+  # keyboard "+" is Shift+"=", so the plain key sends "equal" and GTK would not
+  # match the "plus" binding.
+  zoom-in: "<Alt>plus"
+  zoom-in-alt: "<Alt>equal"
+  zoom-out: "<Alt>minus"
+  zoom-reset: "<Alt>0"
+  # Clipboard. Insert has no browser meaning at all, and Ctrl/Shift+Insert is
+  # the pre-Ctrl+C convention every terminal already honours, so it is one less
+  # thing to unlearn than an arbitrary function key.
+  copy: "<Primary>Insert"
+  paste: "<Shift>Insert"
+
+# --- Welcome page (rdp mode only) ---------------------------------------------
+# The shortcuts above are useless if nobody knows they exist, and a trainer
+# repeating them at every session is the symptom. So they are also written to a
+# local HTML page set as Firefox's home page — no network needed, and it is the
+# first thing a participant sees when the desktop opens.
+guacamole_welcome_page: true
+guacamole_welcome_title: "Bienvenue sur votre bureau de formation"
+guacamole_welcome_path: /usr/local/share/k8s-school/welcome.html
+
+# The same page also gets a bookmark, first on the toolbar: the home page is
+# only seen at startup, and a participant who has since browsed elsewhere needs
+# a way back to it that does not involve retyping a file:// path.
+guacamole_welcome_bookmark_title: "Aide & raccourcis"
+
+# Drop Firefox's "Import bookmarks…" button from the toolbar. See the task for
+# why it is a preference and not a policy — and note it only takes effect on a
+# profile that does not exist yet.
+guacamole_firefox_hide_import_button: true
+
+# Which accels get a row on that page, in display order, with the wording the
+# participants read. An action missing from guacamole_terminal_accels is simply
+# skipped, so trimming the accel map never leaves a stale line behind.
+guacamole_welcome_accel_labels:
+  new-tab: "Ouvrir un nouvel onglet"
+  next-tab: "Onglet suivant"
+  prev-tab: "Onglet précédent"
+  zoom-in: "Agrandir la police"
+  zoom-in-alt: "Agrandir la police (variante AZERTY)"
+  zoom-out: "Réduire la police"
+  zoom-reset: "Revenir à la taille d'origine"
+  copy: "Copier la sélection"
+  paste: "Coller"
+
 # Bookmarks pushed to every account's Firefox (students + trainer) through the
 # enterprise policy file, so they appear on the bookmarks toolbar of a brand-new
 # profile without touching anyone's places.sqlite. Placement is "toolbar" or
 # "menu". Set to an empty list to ship no bookmarks.
+#
+# One folder per training track rather than a flat row: the toolbar stays
+# readable, and a student hunting for "the OTel doc" opens one menu instead of
+# scanning six titles. Firefox renders the entries in the order below, and each
+# folder leads with our own lab — that is where a participant should land first,
+# the upstream docs being the reference they fall back to.
 guacamole_firefox_bookmarks:
   - Title: "K8s School"
     URL: "https://k8s-school.fr"
+    Placement: "toolbar"
+
+  - Title: "Labs Kubernetes"
+    URL: "https://k8s-school.fr/labs/k8s"
+    Folder: "Kubernetes"
+    Placement: "toolbar"
+  - Title: "Documentation Kubernetes"
+    URL: "https://kubernetes.io/docs/home/"
+    Folder: "Kubernetes"
+    Placement: "toolbar"
+
+  - Title: "Labs OpenTelemetry"
+    URL: "https://k8s-school.fr/labs/otel"
+    Folder: "OpenTelemetry"
+    Placement: "toolbar"
+  - Title: "Documentation OpenTelemetry"
+    URL: "https://opentelemetry.io/docs/"
+    Folder: "OpenTelemetry"
+    Placement: "toolbar"
+  - Title: "Démo OpenTelemetry"
+    URL: "https://opentelemetry.io/docs/demo/"
+    Folder: "OpenTelemetry"
     Placement: "toolbar"
 
 # Keep the bookmarks toolbar visible, otherwise the entries above are hidden on

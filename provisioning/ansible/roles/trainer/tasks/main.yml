@@ -43,6 +43,24 @@
     owner: "{{ trainer_user }}"
     group: "{{ trainer_user }}"
 
+# Same block as the participants get, with the address /etc/hosts already
+# reserves for the trainer: 127.0.0.200, out of the student range, because the
+# instructor demoes on the same machine as student1 who owns 127.0.0.1.
+# scripts/env.sh derives the very same values from the login name, so this is
+# belt and braces - but it keeps the answer in one place, next to the
+# /etc/hosts entry, rather than only in the training repo.
+- name: Set the trainer training environment (CLUSTER_NAME + port-forward address)
+  ansible.builtin.blockinfile:
+    path: "/home/{{ trainer_user }}/.bashrc"
+    marker: "# {mark} TRAINING ENV"
+    block: |
+      export CLUSTER_NAME={{ trainer_user }}
+      export PF_ADDR=127.0.0.200
+      export PF_HOST=localhost200
+    owner: "{{ trainer_user }}"
+    group: "{{ trainer_user }}"
+  when: per_user_cluster | default(false)
+
 - name: Clone / update the trainer repo
   become: true
   become_user: "{{ trainer_user }}"
