@@ -89,6 +89,10 @@ CROSS JOIN LATERAL (VALUES
     ('security',      'any'),
     ('ignore-cert',   'true'),
     ('resize-method', 'display-update'),
+    -- Without this guacd defaults to en-us-qwerty and AltGr combinations (the
+    -- pipe, at, backslash, brackets) never make it through from an AZERTY
+    -- keyboard. xrdp aligns the X session's layout on what guacd announces.
+    ('server-layout', '{{ guacamole_rdp_server_layout }}'),
 {% if guacamole_rdp_lean_desktop %}
     -- Performance flags: less for the server to redraw and for guacd to stream,
     -- so input feels closer to real time over a WAN link. (Glyph caching is

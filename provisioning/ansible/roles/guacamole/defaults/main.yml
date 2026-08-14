@@ -42,6 +42,15 @@ guacamole_ssh_port: 22
 # Set to false to have Guacamole prompt for it interactively.
 guacamole_embed_password: true
 
+# Keyboard layout guacd announces to xrdp, which then sets the X session's own
+# layout to match. Left unset, guacd falls back to en-us-qwerty and the whole
+# chain runs QWERTY: on a French keyboard AltGr+6 (the pipe) then arrives with
+# AltGr held down while guacd tries to compose it as Shift+backslash, the two
+# modifiers cancel out, and nothing is typed — with kubectl piped into grep all
+# day, that is not a detail. Set to en-us-qwerty for a QWERTY audience; the
+# keymaps guacd ships are listed in the Guacamole manual (RDP > server-layout).
+guacamole_rdp_server_layout: "fr-fr-azerty"
+
 # --- Latency / bandwidth tuning (rdp mode) ------------------------------------
 # guacd decodes RDP server-side and re-encodes it for the browser, so every
 # pixel the desktop redraws costs CPU *and* WAN bandwidth. The defaults below
