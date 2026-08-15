@@ -1,6 +1,8 @@
-# OpenTofu
+# OpenTofu (VM state and DNS state)
 tofu/.terraform/
 tofu/.terraform.lock.hcl
+tofu/dns/.terraform/
+tofu/dns/.terraform.lock.hcl
 *.tfstate
 *.tfstate.*
 crash.log

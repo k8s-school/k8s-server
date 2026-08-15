@@ -12,11 +12,40 @@ guacamole_image: "guacamole/guacamole:{{ guacamole_version }}"
 guacd_image: "guacamole/guacd:{{ guacamole_version }}"
 guacamole_postgres_image: "postgres:15-alpine"
 
-# Host port the web UI is published on. Access it at
-#   http://<server>:{{ guacamole_http_port }}/guacamole
+# Host port serving plain HTTP. Two meanings depending on guacamole_tls_enabled:
+#   TLS off -> the web UI itself, at http://<server>:{{ guacamole_http_port }}/guacamole
+#   TLS on  -> Caddy, which needs 80 for the ACME HTTP-01 challenge and to
+#              redirect everything to HTTPS; the web app is no longer published.
 # Default 80: the training tooling (ktbx/kubectl) grabs 8080, and a privileged
 # port can't be hijacked by unprivileged student processes. Override if needed.
 guacamole_http_port: 80
+
+# --- HTTPS (Caddy + Let's Encrypt) --------------------------------------------
+# The reason for TLS is not the padlock: Chrome and Firefox restrict the async
+# Clipboard API to secure contexts, so copy-paste between the student's machine
+# and the remote desktop only works over HTTPS — which matters a lot in a
+# training where commands get pasted all day long.
+
+# Public name Guacamole is served on. Injected by OpenTofu through the generated
+# inventory (it owns the OVH DNS record pointing here), so the name is declared
+# in exactly one place: the flavor's tfvars.
+guacamole_fqdn: ""
+
+# TLS follows the name, because a name is precisely what Let's Encrypt
+# validates: there is nothing to decide separately. Force to false to serve
+# plain HTTP on a host that does have a public name.
+guacamole_tls_enabled: "{{ guacamole_fqdn | length > 0 }}"
+
+# ACME account address, used by Let's Encrypt for expiry warnings only. Not a
+# secret, so it belongs here rather than in the vault.
+guacamole_acme_email: "fabrice.jammes@k8s-school.fr"
+
+# Caddy is the TLS terminator: it does ACME, renewal, ARI, the 80 -> 443
+# redirect and the WebSocket Upgrade pass-through with no configuration at all.
+# That last point is what settles the choice — the Guacamole tunnel is a
+# WebSocket, and it is the classic thing to get wrong with a hand-written nginx.
+guacamole_caddy_image: "caddy:2-alpine"
+guacamole_https_port: 443
 
 # Auth database (Postgres). The password is internal-only: it never leaves the
 # compose network, so a fixed local value is fine (not a training secret).

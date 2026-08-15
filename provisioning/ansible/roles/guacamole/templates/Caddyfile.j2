@@ -1,0 +1,11 @@
+# Managed by Ansible (guacamole role) — do not edit by hand.
+# Terminates TLS for Guacamole. Everything that makes this work is implicit:
+# naming a site with a public hostname is what triggers ACME, and reverse_proxy
+# passes the WebSocket Upgrade through, which is what the Guacamole tunnel is.
+{
+    email {{ guacamole_acme_email }}
+}
+
+{{ guacamole_fqdn }} {
+    reverse_proxy guacamole:8080
+}
