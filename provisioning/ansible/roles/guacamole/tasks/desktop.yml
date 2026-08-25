@@ -63,6 +63,15 @@
     state: present
     update_cache: true
 
+# Window-tiling helper, in the system PATH so every participant account has it
+# without a per-user copy: run 'layout.sh' from the desktop terminal and the
+# browser takes the left half of the screen, the terminal the right.
+- name: Install the desktop window-tiling helper
+  ansible.builtin.copy:
+    src: layout.sh
+    dest: /usr/local/bin/layout.sh
+    mode: "0555"
+
 # xrdp's Xorg backend needs any user allowed to start the X server.
 - name: Allow any user to start X (xrdp Xorg backend)
   ansible.builtin.copy:

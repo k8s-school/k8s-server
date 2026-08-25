@@ -91,6 +91,11 @@ guacamole_desktop_packages:
   - xrdp
   - xorgxrdp
   - dbus-x11
+  # Queried and driven by /usr/local/bin/layout.sh, which tiles the browser and
+  # the terminal side by side: xdotool finds/moves/resizes windows, wmctrl
+  # un-maximizes them first (a maximized window ignores a resize).
+  - xdotool
+  - wmctrl
 # Browser students launch from the desktop. Pulled from Mozilla's APT repo (the
 # Ubuntu 'firefox' package is a snap that doesn't run under xrdp).
 guacamole_browser_package: firefox
