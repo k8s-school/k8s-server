@@ -96,6 +96,22 @@ bouton <strong>+</strong> de la barre d'onglets.</p>
 </div>
 
 <h2>Copier-coller depuis votre propre machine</h2>
+{# The two halves of the reason this server runs on HTTPS: the browser only
+   hands its clipboard to Guacamole in a secure context, so the instructions to
+   give a participant are not the same on the two schemes. Rendered from
+   guacamole_tls_enabled so the page never describes a mode this server is not
+   actually running in. #}
+{% if guacamole_tls_enabled | bool %}
+<p>Le bureau partage le presse-papiers de votre navigateur&nbsp;: copiez chez
+vous avec <kbd>Ctrl</kbd> + <kbd>C</kbd>, cliquez dans le bureau distant, puis
+collez dans le terminal avec {{ keys(guacamole_terminal_accels['paste'] | default('<Shift>Insert')) }}.
+Dans l'autre sens, sélectionner du texte dans le bureau distant suffit à le
+rendre disponible chez vous.</p>
+<p class="note">Votre navigateur peut demander l'autorisation d'accéder au
+presse-papiers la première fois&nbsp;: acceptez-la. S'il la refuse, le panneau
+latéral reste le passage garanti&nbsp;: <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Maj</kbd>,
+collez dans la zone <em>Presse-papiers</em>, refermez avec la même combinaison.</p>
+{% else %}
 <p>Le presse-papiers de votre ordinateur et celui du bureau distant sont
 séparés. Pour transférer du texte&nbsp;:</p>
 <ul>
@@ -107,6 +123,7 @@ séparés. Pour transférer du texte&nbsp;:</p>
 </ul>
 <p class="note">Dans l'autre sens, sélectionnez le texte dans le bureau distant
 puis récupérez-le dans ce même panneau.</p>
+{% endif %}
 
 {# Same list as the bookmarks toolbar, from the same variable — one place to edit. #}
 {% if guacamole_firefox_bookmarks | length > 0 %}
