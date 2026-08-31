@@ -1,3 +1,8 @@
+locals {
+  dns_enabled = var.dns_zone != ""
+  fqdn        = local.dns_enabled ? "${var.dns_subdomain}.${var.dns_zone}" : ""
+}
+
 # Reserved IP, tagged like the current setup so it survives `tofu destroy`
 # (destroy removes the server, keeps this IP for the next session).
 resource "scaleway_instance_ip" "main" {
@@ -38,6 +43,9 @@ resource "null_resource" "wait_for_ssh" {
 }
 
 # Generate the Ansible inventory so `make configure` needs no manual IP wiring.
+# guacamole_fqdn travels the same way: OpenTofu owns the DNS record, so the name
+# is declared once (in the flavor's tfvars) instead of being repeated in
+# group_vars. The guacamole role turns TLS on when it receives one.
 resource "local_file" "inventory" {
   filename = "${path.module}/../ansible/inventory/${var.flavor}.ini"
   content  = <<-EOT
@@ -47,5 +55,6 @@ resource "local_file" "inventory" {
 
     [${var.flavor}:vars]
     flavor=${var.flavor}
+    ${local.dns_enabled ? "guacamole_fqdn=${local.fqdn}" : "# no dns_zone declared: Guacamole is served over plain HTTP"}
   EOT
 }

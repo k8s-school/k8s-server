@@ -5,16 +5,23 @@ FLAVOR ?= otel
 ZONE ?= fr-par-1
 SSH_USER ?= root
 TOFU_DIR := tofu
+DNS_DIR := tofu/dns
 ANSIBLE_DIR := ansible
 TFVARS := envs/$(FLAVOR).tfvars
 INVENTORY := $(ANSIBLE_DIR)/inventory/$(FLAVOR).ini
+
+# Pull a quoted value out of the flavor's tfvars, e.g. $(call tfvar,dns_zone).
+# The DNS state is applied separately (see the `dns` target), so it gets its
+# inputs this way instead of reading the file itself — its variables are not the
+# same set as the VM state's.
+tfvar = $$(grep -E '^[[:space:]]*$(1)[[:space:]]*=' $(TOFU_DIR)/$(TFVARS) | sed -E 's/.*"([^"]+)".*/\1/')
 
 # Shell pipeline printing the Scaleway image IDs tagged for the current FLAVOR
 # (one per line). This is how the image is found by tag instead of a pinned id.
 IMAGE_IDS = scw instance image list zone=$(ZONE) -o json | jq -r --arg t "flavor=$(FLAVOR)" '.[] | select((.tags // []) | index($$t)) | .id'
 
 .DEFAULT_GOAL := help
-.PHONY: help init create-image up down configure provision ssh ip fmt validate delete-image delete-ip
+.PHONY: help init create-image up dns down configure provision ssh ip fqdn fmt validate delete-image delete-ip delete-dns
 
 help: ## Show this help (default target)
 	@echo "Training provisioning — usage: make <target> [FLAVOR=k8s|openshift|otel]"
@@ -23,8 +30,9 @@ help: ## Show this help (default target)
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 	  | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
 
-init: ## One-time: initialize the OpenTofu working directory
+init: ## One-time: initialize the OpenTofu working directories (VM + DNS)
 	cd $(TOFU_DIR) && tofu init
+	cd $(DNS_DIR) && tofu init
 
 create-image: ## Build the golden Scaleway image with Packer (locally)
 	cd packer && packer init . && packer build -var flavor=$(FLAVOR) .
@@ -62,10 +70,27 @@ up: ## Create/update the VM + reserved IP, and write the Ansible inventory
 	  exit 1; \
 	fi
 
+dns: ## Point the flavor's DNS record at the reserved IP (no-op without dns_zone)
+	@# Separate OpenTofu state (tofu/dns): the OVH provider checks its credentials
+	@# as soon as it is configured, so keeping it out of the VM state is what lets
+	@# a flavor with no domain name run without any OVH credentials at all.
+	@# Needs OVH_APPLICATION_KEY / OVH_APPLICATION_SECRET / OVH_CONSUMER_KEY.
+	@zone="$(call tfvar,dns_zone)"; sub="$(call tfvar,dns_subdomain)"; \
+	if [ -z "$$zone" ]; then \
+	  echo "No dns_zone in $(TFVARS): $(FLAVOR) has no public name, nothing to do."; \
+	  echo "(Guacamole is then served over plain HTTP — see provisioning/README.md.)"; \
+	  exit 0; \
+	fi; \
+	ip=$$(cd $(TOFU_DIR) && tofu output -raw public_ip) || \
+	  { echo "ERROR: no public_ip in the VM state — run 'make up FLAVOR=$(FLAVOR)' first."; exit 1; }; \
+	echo "Pointing $${sub:-training}.$$zone at $$ip"; \
+	cd $(DNS_DIR) && tofu init -input=false >/dev/null && \
+	tofu apply -var dns_zone="$$zone" -var dns_subdomain="$${sub:-training}" -var target_ip="$$ip" -auto-approve
+
 configure: ## Run Ansible: participant accounts, repo clones, training clusters
 	cd $(ANSIBLE_DIR) && ansible-playbook -i inventory/$(FLAVOR).ini site.yml -e flavor=$(FLAVOR)
 
-provision: up configure ## Full session bring-up (up + configure)
+provision: up dns configure ## Full session bring-up (up + dns + configure)
 
 down: ## Destroy the VM only (keeps the reserved IP for the next session)
 	@# A blanket `tofu destroy` would try to delete the IP too, which has
@@ -91,15 +116,25 @@ delete-ip: ## Release the reserved (floating) IP for this flavor
 	echo "Deleting reserved IP $$ip_id (tag $$name)"; \
 	scw instance ip delete "$$ip_id"
 
+delete-dns: ## Remove the DNS record for this flavor (the reserved IP is untouched)
+	@zone="$(call tfvar,dns_zone)"; \
+	if [ -z "$$zone" ]; then echo "No dns_zone in $(TFVARS), nothing to delete"; exit 0; fi; \
+	cd $(DNS_DIR) && tofu destroy -auto-approve \
+	  -var dns_zone="$$zone" -var dns_subdomain="$(call tfvar,dns_subdomain)" -var target_ip=unused-on-destroy
+
 ip: ## Print the instance public IP
 	cd $(TOFU_DIR) && tofu output -raw public_ip
+
+fqdn: ## Print the public name of the instance (empty when no dns_zone)
+	@cd $(TOFU_DIR) && tofu output -raw fqdn
 
 ssh: ## SSH to the VM as root (admin access via the operator key). Override user: make ssh SSH_USER=student1
 	ssh $(SSH_USER)@$$(cd $(TOFU_DIR) && tofu output -raw public_ip)
 
 fmt: ## Format the OpenTofu and Packer files
-	cd $(TOFU_DIR) && tofu fmt
+	cd $(TOFU_DIR) && tofu fmt -recursive
 	cd packer && packer fmt .
 
-validate: ## Validate the OpenTofu configuration
+validate: ## Validate the OpenTofu configuration (VM + DNS)
 	cd $(TOFU_DIR) && tofu validate
+	cd $(DNS_DIR) && tofu validate
