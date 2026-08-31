@@ -36,6 +36,15 @@ export SCW_ACCESS_KEY=... SCW_SECRET_KEY=... SCW_DEFAULT_PROJECT_ID=...
 export OVH_APPLICATION_KEY=... OVH_APPLICATION_SECRET=... OVH_CONSUMER_KEY=...
 ```
 
+They are used a handful of times a year, so the operator machine keeps them in a
+mode-600 file (`~/.config/ovh/k8s-school.env`, holding the three lines above)
+and sources it right before the call rather than exporting them in a shell
+profile:
+
+```bash
+set -a; . ~/.config/ovh/k8s-school.env; set +a && make dns FLAVOR=otel
+```
+
 Nothing else needs them: the DNS record lives in its own OpenTofu state
 (`tofu/dns/`), so a flavor without a domain name never touches the OVH provider.
 
