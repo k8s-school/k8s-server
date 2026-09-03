@@ -56,7 +56,9 @@ Typical lifecycle:
 2. **Each session**: `make provision` (boots the VM + configures accounts), then
    `make ssh`.
 3. **Teardown**: `make down`, then `make delete-image` / `make delete-ip` to stop
-   paying for anything between sessions.
+   paying for anything between sessions. `make status` lists what is still
+   alive on the account — instances, reserved IPs, images, and the volumes and
+   snapshots a deleted server leaves behind, which keep billing on their own.
 
 ## Layout
 
