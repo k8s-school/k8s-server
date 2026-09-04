@@ -154,6 +154,47 @@
     state: latest
     update_cache: true
   when: ansible_facts['os_family'] == "Debian"
+# --- RBAC auditing tools ------------------------------------------------------
+# Needed by the "find the RBAC security issue" lab: sec-issue.sh plants a
+# cluster-admin binding on the 'monitor' default ServiceAccount and the students
+# hunt it down with these. Installed system-wide, like the tooling above, so they
+# are on the PATH of every account without a per-user install step.
+
+- name: Install kubescape
+  ansible.builtin.get_url:
+    url: "https://github.com/kubescape/kubescape/releases/download/v{{ kubescape_version }}/kubescape_{{ kubescape_version }}_linux_amd64"
+    dest: /usr/local/bin/kubescape
+    mode: "0555"
+    force: false
+  tags: [rbac-tools]
+
+# rakkess is BUILT FROM SOURCE, not downloaded. Its last release that ships
+# binaries is v0.5.0 (2022) and that binary is broken against a current
+# Kubernetes: it fails to enumerate the API resources, so it prints an empty
+# NAME column and a wall of "✖" even for a cluster-admin -- silently, with exit
+# code 0. The v0.5.1 source builds fine and works, hence 'go install'.
+- name: Install rakkess (built from source)
+  ansible.builtin.shell: |
+    set -euo pipefail
+    go install github.com/corneliusweig/rakkess@v{{ rakkess_version }}
+    install -m 0555 "$(go env GOPATH)/bin/rakkess" /usr/local/bin/rakkess
+  args:
+    creates: /usr/local/bin/rakkess
+    executable: /bin/bash
+  environment:
+    PATH: "/usr/local/go/bin:{{ ansible_facts['env'].PATH }}"
+  tags: [rbac-tools]
+
+# Same binary, under the name krew would give it: a 'kubectl-<name>' executable
+# on the PATH is what makes 'kubectl access-matrix ...' work, which is the form
+# the security deck uses. Shipping it here means the labs need no krew at all.
+- name: Install rakkess as the 'kubectl access-matrix' plugin
+  ansible.builtin.copy:
+    src: /usr/local/bin/rakkess
+    dest: /usr/local/bin/kubectl-access_matrix
+    remote_src: true
+    mode: "0555"
+  tags: [rbac-tools]
 
 # System-wide bash completion for every account, incl. users created later.
 # Must run after the binaries above: the scripts are generated from them, so a
