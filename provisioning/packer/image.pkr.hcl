@@ -23,6 +23,11 @@ source "scaleway" "training" {
   # Stable label used by `make up` to find THIS flavor's image (no more copying
   # image_id around). The timestamped name still lets you eyeball/prune old ones.
   tags = ["k8s-training", "flavor=${var.flavor}"]
+  # Delete the build server's volumes once the snapshot is taken. Off by default,
+  # and the volume outlives the temporary server: every build used to leave a
+  # 10 GB volume named after the source image behind, billed for ever (18 had
+  # piled up by 2026-09, 180 GB — `make status` reports them now).
+  remove_volume = true
 }
 
 build {

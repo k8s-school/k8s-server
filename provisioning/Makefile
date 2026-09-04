@@ -21,7 +21,7 @@ tfvar = $$(grep -E '^[[:space:]]*$(1)[[:space:]]*=' $(TOFU_DIR)/$(TFVARS) | sed 
 IMAGE_IDS = scw instance image list zone=$(ZONE) -o json | jq -r --arg t "flavor=$(FLAVOR)" '.[] | select((.tags // []) | index($$t)) | .id'
 
 .DEFAULT_GOAL := help
-.PHONY: help init create-image up dns down configure provision ssh ip fqdn fmt validate delete-image delete-ip delete-dns
+.PHONY: help init create-image up dns down configure provision ssh ip fqdn fmt validate delete-image delete-ip delete-dns status
 
 help: ## Show this help (default target)
 	@echo "Training provisioning — usage: make <target> [FLAVOR=k8s|openshift|otel]"
@@ -121,6 +121,52 @@ delete-dns: ## Remove the DNS record for this flavor (the reserved IP is untouch
 	if [ -z "$$zone" ]; then echo "No dns_zone in $(TFVARS), nothing to delete"; exit 0; fi; \
 	cd $(DNS_DIR) && tofu destroy -auto-approve \
 	  -var dns_zone="$$zone" -var dns_subdomain="$(call tfvar,dns_subdomain)" -var target_ip=unused-on-destroy
+
+status: ## Show what exists right now on the account (i.e. what is billed) + DNS
+	@# Read from the provider, not from the OpenTofu state: the point is to spot
+	@# everything still alive after a session, including what the state does not
+	@# know about — an image from a past build, a volume left behind by a deleted
+	@# server, a snapshot. Those keep billing while nothing runs.
+	@command -v scw >/dev/null || { echo "scw CLI not found (see install-tools.sh)"; exit 1; }
+	@echo "== Instances (zone $(ZONE)) =="
+	@scw instance server list zone=$(ZONE) -o json | jq -r \
+	  'if length == 0 then "  (none)" else .[] | "  \(.name)  [\(.state)]  \(.commercial_type)  \(.public_ip.address // "no ip")  tags=[\(.tags | join(","))]" end'
+	@echo
+	@echo "== Reserved IPs (billed even while detached) =="
+	@scw instance ip list zone=$(ZONE) -o json | jq -r \
+	  'if length == 0 then "  (none)" else .[] | "  \(.address)  \(if .server then "attached to \(.server.name)" else "DETACHED" end)  tags=[\(.tags | join(","))]" end'
+	@echo
+	@echo "== Images (flavor-tagged ones are what 'make up' boots) =="
+	@scw instance image list zone=$(ZONE) -o json | jq -r \
+	  'if length == 0 then "  (none)" else .[] | "  \(.name)  tags=[\(.tags | join(","))]  \(.creation_date[0:10])  id=\(.id)" end'
+	@echo
+	@echo "== Block volumes attached to nothing (billed all the same) =="
+	@# Two known sources: a `make down` leaves the server's root volume behind, and
+	@# Packer used to leak one per build (fixed by remove_volume in image.pkr.hcl —
+	@# a leftover named after the source image means a build predating it). Grouped
+	@# by name+size with the date span, else one line each buries the report.
+	@# Delete them by id: scw block volume list zone=$(ZONE) / scw block volume delete <id>
+	@scw block volume list zone=$(ZONE) -o json | jq -r '[.[] | select((.references // []) | length == 0)] | if length == 0 then "  (none)" else (group_by(.name, .size)[] | "  \(length)x  \(.[0].name)  \(.[0].size / 1000000000 | floor) GB each  (\(min_by(.created_at).created_at[0:10]) -> \(max_by(.created_at).created_at[0:10]))"), "  -> \(map(.size) | add / 1000000000 | floor) GB in \(length) unattached volume(s)" end'
+	@echo
+	@echo "== Block snapshots (billed; an image IS a snapshot, hence the cross-check) =="
+	@# A snapshot listed as backing an image is not waste — it is the image `make
+	@# up` boots. Only the orphans are: `scw instance image delete` without
+	@# with-snapshots=true leaves one behind every time.
+	@imgs=$$(scw instance image list zone=$(ZONE) -o json | jq -c '[.[] | {id: .root_volume.id, name: .name}]'); \
+	scw block snapshot list zone=$(ZONE) -o json | jq -r --argjson imgs "$$imgs" 'if length == 0 then "  (none)" else (.[] | . as $$s | ($$imgs | map(select(.id == $$s.id)) | first) as $$img | "  \(.name)  \(.size / 1000000000 | floor) GB  \(if $$img then "backs image \($$img.name)" else "ORPHAN  id=\(.id)" end)"), ([.[] | select(.id as $$i | ($$imgs | map(.id) | index($$i)) | not)] | "  -> \(map(.size) | add // 0 | . / 1000000000 | floor) GB in \(length) orphan snapshot(s)") end'
+	@echo
+	@echo "== OpenTofu state =="
+	@# One state, one workspace: it holds whichever flavor `make up` last applied,
+	@# not necessarily FLAVOR=$(FLAVOR) — the server name below says which.
+	@if [ ! -f $(TOFU_DIR)/terraform.tfstate ]; then echo "  vm: no state yet (never ran 'make up')"; else \
+	  name=$$(jq -r '.resources[] | select(.type == "scaleway_instance_server") | .instances[0].attributes.name' $(TOFU_DIR)/terraform.tfstate); \
+	  ip=$$(cd $(TOFU_DIR) && tofu output -raw public_ip 2>/dev/null); \
+	  if [ -n "$$name" ]; then echo "  vm: $$name present at $$ip"; \
+	  else echo "  vm: destroyed, reserved ip kept ($$ip)"; fi; fi
+	@zone="$(call tfvar,dns_zone)"; \
+	if [ -z "$$zone" ]; then echo "  dns: no dns_zone in $(TFVARS) — $(FLAVOR) is served over plain HTTP"; \
+	elif [ ! -f $(DNS_DIR)/terraform.tfstate ]; then echo "  dns: $(call tfvar,dns_subdomain).$$zone declared in $(TFVARS) but never applied — run 'make dns'"; \
+	else echo "  dns: $$(cd $(DNS_DIR) && tofu output -raw fqdn 2>/dev/null) -> $$(cd $(DNS_DIR) && tofu output -raw target_ip 2>/dev/null)"; fi
 
 ip: ## Print the instance public IP
 	cd $(TOFU_DIR) && tofu output -raw public_ip

@@ -8,7 +8,7 @@
 # first - raise root_volume_size_gb before raising this.
 nb_users: 20
 repo: "otel"
-repo_dest: ".ktbx/homefs/otel"
+repo_dest: "otel"
 # Trainer gets the same repo (k8s-school/otel).
 trainer_repo: "otel"
 extra_groups: ["docker", "adm"]

@@ -47,6 +47,114 @@
   args:
     creates: /usr/local/bin/kind
 
+# ink — k8s-school's assertion helper. Not a convenience: the k8s-advanced and
+# finops labs call it directly (labs/2_authorization/ci.sh and friends), so
+# without it their CI scripts fail on the very first step. Same install pattern
+# as ktbx above, and pinned to the version those labs' own CI installs.
+- name: Install ink
+  ansible.builtin.shell: |
+    set -euo pipefail
+    go install github.com/k8s-school/ink@{{ ink_version }}
+    install -m 0555 "$(go env GOPATH)/bin/ink" /usr/local/bin/ink
+  args:
+    creates: /usr/local/bin/ink
+    executable: /bin/bash
+  environment:
+    PATH: "/usr/local/go/bin:{{ ansible_facts['env'].PATH }}"
+
+# --- Client tooling formerly provided by the `ktbx desk` container ------------
+# See group_vars/all/vars.yml for why these moved onto the host. Same pattern as
+# Go above: pinned release tarball, extracted straight into /usr/local/bin, with
+# `creates` making a re-run a no-op. `include` pulls only the binary out of the
+# archive, leaving the LICENSE/README the upstream tarballs also ship.
+
+- name: Install the shell tools the toolbox provided
+  ansible.builtin.package:
+    name: [zsh, vim, nano, parallel]
+    state: present
+
+- name: Install kubectx and kubens
+  ansible.builtin.unarchive:
+    src: "https://github.com/ahmetb/kubectx/releases/download/{{ kubectx_version }}/{{ item }}_{{ kubectx_version }}_linux_x86_64.tar.gz"
+    dest: /usr/local/bin
+    remote_src: true
+    include: ["{{ item }}"]
+    creates: "/usr/local/bin/{{ item }}"
+  loop: [kubectx, kubens]
+
+- name: Install kustomize
+  ansible.builtin.unarchive:
+    # The tag is 'kustomize/vX.Y.Z' — the slash is URL-encoded in the asset path.
+    src: "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F{{ kustomize_version }}/kustomize_{{ kustomize_version }}_linux_amd64.tar.gz"
+    dest: /usr/local/bin
+    remote_src: true
+    include: [kustomize]
+    creates: /usr/local/bin/kustomize
+
+- name: Install stern
+  ansible.builtin.unarchive:
+    # Tag carries the leading 'v', the asset filename does not.
+    src: "https://github.com/stern/stern/releases/download/{{ stern_version }}/stern_{{ stern_version | replace('v', '') }}_linux_amd64.tar.gz"
+    dest: /usr/local/bin
+    remote_src: true
+    include: [stern]
+    creates: /usr/local/bin/stern
+
+- name: Install k9s
+  ansible.builtin.unarchive:
+    src: "https://github.com/derailed/k9s/releases/download/{{ k9s_version }}/k9s_Linux_amd64.tar.gz"
+    dest: /usr/local/bin
+    remote_src: true
+    include: [k9s]
+    creates: /usr/local/bin/k9s
+
+# The ~800 generated kubectl aliases (k, kg, kgpo, kdel...) the toolbox sourced
+# from its .bashrc. Dropped in bash_completion.d for the same reason as the
+# completion scripts below: that directory is the only one bash sources for the
+# interactive non-login shells the XFCE terminal spawns.
+- name: Install the kubectl aliases
+  ansible.builtin.get_url:
+    url: https://raw.githubusercontent.com/ahmetb/kubectl-aliases/master/.kubectl_aliases
+    dest: /etc/bash_completion.d/kubectl_aliases
+    mode: "0644"
+
+# The toolbox shipped its own /opt/bin on the PATH; clone-school.sh is the one
+# script from it still worth having — it clones/updates the four training repos
+# into $HOME. /usr/local/bin is already on every account's PATH, so it needs no
+# profile edit to be reachable.
+- name: Install clone-school.sh
+  ansible.builtin.copy:
+    src: clone-school.sh
+    dest: /usr/local/bin/clone-school.sh
+    mode: "0755"
+
+# --- Google Cloud SDK ---------------------------------------------------------
+# Used by the GCP labs. Debian/Ubuntu only: the Fedora flavor (openshift) runs
+# crc locally and has no GCP lab, so its yum counterpart is deliberately absent
+# rather than shipped untested.
+- name: Add the Google Cloud apt repository (deb822, fetches the signing key)
+  ansible.builtin.deb822_repository:
+    name: google-cloud-sdk
+    types: [deb]
+    uris: "https://packages.cloud.google.com/apt"
+    suites: [cloud-sdk]
+    components: [main]
+    architectures: [amd64]
+    signed_by: "https://packages.cloud.google.com/apt/doc/apt-key.gpg"
+    state: present
+  when: ansible_facts['os_family'] == "Debian"
+
+# state: latest, not present — gcloud warns on every invocation once it lags
+# behind, and the image is the one place where catching up is free. Same policy
+# as the dist-upgrade in image.yml: update once at bake time, then the frozen
+# updaters keep it still for the whole session.
+- name: Install the Google Cloud CLI # noqa: package-latest
+  ansible.builtin.apt:
+    name: google-cloud-cli
+    state: latest
+    update_cache: true
+  when: ansible_facts['os_family'] == "Debian"
+
 # System-wide bash completion for every account, incl. users created later.
 # Must run after the binaries above: the scripts are generated from them, so a
 # tooling upgrade regenerates a matching completion (copy compares the content).
