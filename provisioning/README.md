@@ -60,6 +60,55 @@ Typical lifecycle:
    alive on the account — instances, reserved IPs, images, and the volumes and
    snapshots a deleted server leaves behind, which keep billing on their own.
 
+## Lab kubeadm: one cluster per participant
+
+`labs/0_kubeadm` of [k8s-advanced](https://github.com/k8s-school/k8s-advanced)
+is the only lab of the course that cannot run on kind: building a control plane
+by hand needs real machines. `make cluster` boots **two VMs per participant** —
+`student<I>-1` (master) and `student<I>-2` (worker):
+
+```bash
+make cluster nb=10        # 10 participants -> 20 VMs, ~1 min
+make cluster-dispatch     # drops the ssh access into the student<N> accounts
+# ... the lab runs ...
+make cluster-down         # destroys the VMs AND their IPs
+```
+
+Participants then just type `ssh student3-1` from their training terminal:
+`make cluster-dispatch` wrote the key and the `~/.ssh/config` entries into their
+account, and `labs/0_kubeadm/env.sh` derives `MASTER`/`NODES` from `$USER`, so
+there is nothing to configure and nothing to type. That naming is the whole
+point of the design — VM names match the account names created by the
+`participants` role, and Scaleway takes the hostname from the VM name, so the
+Kubernetes node names read the same as the SSH host names.
+
+`make cluster-dispatch` needs the accounts to exist, so run it after
+`make configure`; it fails with an explicit message otherwise.
+
+Sizing, and what it costs (`fr-par-1` prices):
+
+| Node | Type | Specs | Why |
+|---|---|---|---|
+| `student<I>-1` master | `DEV1-M` | 3 vCPU, 4 GiB, 0.020 €/h | The VMs have no swap, so a memory spike during `kubeadm init` or `cilium install` gets `kube-apiserver` OOM-killed. Not worth saving 1 cent. |
+| `student<I>-2` worker | `DEV1-S` | 2 vCPU, 2 GiB, 0.009 €/h | Only carries kubelet, cilium-agent and a handful of demo pods. |
+
+A cluster therefore costs **0.029 €/h**, so about **6 cents per participant** for
+a two-hour lab. The VMs boot from a plain `ubuntu_noble` image, *not* the
+Packer-baked one: installing containerd and kubeadm is the exercise.
+
+Its own OpenTofu state (`tofu/clusters/`), for the reason that matters:
+lifetime. The training server lives for the whole session behind a reserved IP
+carrying `prevent_destroy`; these clusters are booted for a two-hour lab and
+destroyed right after. Nothing here carries `prevent_destroy` — a lab IP that
+outlives its VM is billed for nothing, which is the classic way a training
+session quietly costs money for weeks. Everything is tagged `kubeadm-lab`, so a
+leftover is one command away:
+
+```bash
+scw instance server list tags.0=kubeadm-lab
+scw instance ip list tags.0=kubeadm-lab
+```
+
 ## Layout
 
 ```
@@ -67,10 +116,12 @@ provisioning/
 ├── Makefile              # thin wrapper around the 3 tools
 ├── packer/               # golden image build (runs ansible/image.yml)
 ├── tofu/                 # VM + IP lifecycle, one *.tfvars per flavor
-│   └── dns/              # OVH DNS record, separate state (see below)
+│   ├── dns/              # OVH DNS record, separate state (see below)
+│   └── clusters/         # kubeadm lab clusters, separate state (see below)
 └── ansible/
     ├── image.yml         # play baked INTO the image (docker + base_tools)
     ├── site.yml          # play run per-session (participants + training)
+    ├── lab-clusters.yml  # play run per-lab (kubeadm cluster access)
     ├── group_vars/       # per-flavor knobs (prefix, repo, cluster policy)
     └── roles/
         ├── docker/       # docker-ce, socket-activated (baked)
@@ -78,6 +129,7 @@ provisioning/
         ├── participants/ # accounts, home, repo clone, bashrc (per-session)
         ├── trainer/      # shared trainer account: sudo + docker + repo (per-session)
         ├── training/     # ktbx create / helm / crc (per-session)
+        ├── lab_clusters/ # per-participant kubeadm cluster access (per-lab)
         └── guacamole/    # optional browser SSH gateway, Docker stack (per-session)
 ```
 

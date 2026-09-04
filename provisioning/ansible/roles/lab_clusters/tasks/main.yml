@@ -1,0 +1,138 @@
+---
+# Hands each participant SSH access to their own two-node kubeadm cluster.
+#
+# Reads ansible/data/clusters.yml, written by the tofu/clusters state, and for
+# every participant it lists drops the matching private key and ~/.ssh/config
+# entries into that account. After this, a participant logged in as student3
+# types `ssh student3-1` and lands on their master — which is exactly what
+# labs/0_kubeadm/env.sh expects, since it derives MASTER/NODES from $USER.
+#
+# Kept out of site.yml on purpose: the clusters live for a two-hour lab while
+# the training server lives for the whole session, so they are dispatched on
+# their own (`make cluster-dispatch`) without replaying the session playbook.
+
+- name: Fail early when the cluster data is missing
+  ansible.builtin.assert:
+    that: lab_clusters is defined and lab_clusters | length > 0
+    fail_msg: >-
+      No cluster data. Run `make cluster nb=<N>` first: it writes
+      ansible/data/clusters.yml, which this play loads through vars_files.
+
+# The accounts come from the participants role. Dispatching to an account that
+# does not exist yet would create a root-owned ~/.ssh and lock the participant
+# out of their own home, so check rather than assume.
+- name: Look up the participant accounts
+  ansible.builtin.getent:
+    database: passwd
+
+# Loops over the names alone, not over the cluster entries: assert echoes the
+# whole item, and a cluster entry carries the participant's private key — which
+# would then sit in the trainer's scrollback, and in any pasted output.
+- name: Fail when a participant account is missing
+  ansible.builtin.assert:
+    that: item in getent_passwd
+    fail_msg: >-
+      Account {{ item }} does not exist on this server. Run
+      `make configure FLAVOR=<flavor>` first, or lower nb= to the number of
+      accounts (nb_users in group_vars/all/vars.yml).
+  loop: "{{ lab_clusters | map(attribute='student') | list }}"
+
+- name: Ensure each participant has a .ssh directory
+  ansible.builtin.file:
+    path: "/home/{{ item.student }}/.ssh"
+    state: directory
+    owner: "{{ item.student }}"
+    group: "{{ item.student }}"
+    mode: "0700"
+  loop: "{{ lab_clusters }}"
+  loop_control:
+    label: "{{ item.student }}"
+
+# One key per participant, so a participant can only reach their own nodes.
+- name: Install each participant's cluster key
+  ansible.builtin.copy:
+    dest: "/home/{{ item.student }}/.ssh/{{ lab_cluster_key_name }}"
+    content: "{{ item.private_key }}"
+    owner: "{{ item.student }}"
+    group: "{{ item.student }}"
+    mode: "0600"
+  loop: "{{ lab_clusters }}"
+  loop_control:
+    label: "{{ item.student }}"
+  no_log: true # the private key would otherwise be echoed on change
+
+# blockinfile rather than a template: the participants' ~/.ssh/config may hold
+# entries of their own, and the marker lets a re-dispatch replace just this
+# block when the cluster is rebuilt with new addresses.
+- name: Declare the cluster nodes in each participant's ssh config
+  ansible.builtin.blockinfile:
+    path: "/home/{{ item.student }}/.ssh/config"
+    marker: "# {mark} KUBEADM LAB"
+    create: true
+    owner: "{{ item.student }}"
+    group: "{{ item.student }}"
+    mode: "0600"
+    block: |
+      Host {{ item.master.name }}
+        HostName {{ item.master.ip }}
+        User {{ item.ssh_user }}
+        IdentityFile ~/.ssh/{{ lab_cluster_key_name }}
+        IdentitiesOnly yes
+        StrictHostKeyChecking accept-new
+
+      Host {{ item.worker.name }}
+        HostName {{ item.worker.ip }}
+        User {{ item.ssh_user }}
+        IdentityFile ~/.ssh/{{ lab_cluster_key_name }}
+        IdentitiesOnly yes
+        StrictHostKeyChecking accept-new
+  loop: "{{ lab_clusters }}"
+  loop_control:
+    label: "{{ item.student }}"
+
+# ssh records a host key under the address it actually connected to, and
+# Scaleway hands released addresses back out to other customers' VMs. So the
+# dangerous case is not a new address, it is a *recycled* one: an entry left
+# from a previous session would greet the participant with the big
+# IDENTIFICATION HAS CHANGED banner. Drop the entries for the addresses we are
+# about to hand out — the same thing the old scw.sh did with `ssh-keygen -R`.
+# 'accept-new' in the config above then silently learns the real key.
+#
+# Reports 'changed' on every run, by design: it removes whatever the last
+# session learned. Harmless mid-lab — the next connection just re-learns the
+# key — but it is why this play is not expected to settle at changed=0.
+# Repairs what earlier versions of this role left behind: the known_hosts task
+# below used to run as root, which created these two files root-owned, and ssh
+# then greeted the participant with "Failed to add the host to the list of
+# known hosts" on every single connection. Only touches files that exist.
+- name: Find known_hosts files not owned by their participant
+  ansible.builtin.stat:
+    path: "/home/{{ item.0.student }}/.ssh/{{ item.1 }}"
+  register: lab_cluster_known_hosts
+  loop: "{{ lab_clusters | product(['known_hosts', 'known_hosts.old']) | list }}"
+  loop_control:
+    label: "{{ item.0.student }}/{{ item.1 }}"
+
+- name: Give those files back to their participant
+  ansible.builtin.file:
+    path: "{{ item.stat.path }}"
+    owner: "{{ item.item.0.student }}"
+    group: "{{ item.item.0.student }}"
+    mode: "0600"
+  loop: "{{ lab_cluster_known_hosts.results }}"
+  loop_control:
+    label: "{{ item.item.0.student }}/{{ item.item.1 }}"
+  when: item.stat.exists
+
+# Runs as the participant, not as root: the module creates known_hosts (and its
+# .old backup) when they are missing, and whoever runs it owns what it creates.
+- name: Forget any host key recorded for the new addresses
+  ansible.builtin.known_hosts:
+    path: "/home/{{ item.0.student }}/.ssh/known_hosts"
+    name: "{{ item.0[item.1].ip }}"
+    state: absent
+  become: true
+  become_user: "{{ item.0.student }}"
+  loop: "{{ lab_clusters | product(['master', 'worker']) | list }}"
+  loop_control:
+    label: "{{ item.0[item.1].name }} ({{ item.0[item.1].ip }})"

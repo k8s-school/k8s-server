@@ -6,6 +6,7 @@ ZONE ?= fr-par-1
 SSH_USER ?= root
 TOFU_DIR := tofu
 DNS_DIR := tofu/dns
+CLUSTERS_DIR := tofu/clusters
 ANSIBLE_DIR := ansible
 TFVARS := envs/$(FLAVOR).tfvars
 INVENTORY := $(ANSIBLE_DIR)/inventory/$(FLAVOR).ini
@@ -21,18 +22,21 @@ tfvar = $$(grep -E '^[[:space:]]*$(1)[[:space:]]*=' $(TOFU_DIR)/$(TFVARS) | sed 
 IMAGE_IDS = scw instance image list zone=$(ZONE) -o json | jq -r --arg t "flavor=$(FLAVOR)" '.[] | select((.tags // []) | index($$t)) | .id'
 
 .DEFAULT_GOAL := help
-.PHONY: help init create-image up dns down configure provision ssh ip fqdn fmt validate delete-image delete-ip delete-dns status
+.PHONY: help init create-image up dns down configure provision ssh ip fqdn fmt validate delete-image delete-ip delete-dns status \
+        cluster cluster-dispatch cluster-list cluster-ssh cluster-down
 
 help: ## Show this help (default target)
 	@echo "Training provisioning — usage: make <target> [FLAVOR=k8s|openshift|otel]"
 	@echo "Current FLAVOR=$(FLAVOR)"
+	@echo "The cluster-* targets take nb=<N> instead, not FLAVOR — see README.md."
 	@echo
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 	  | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
 
-init: ## One-time: initialize the OpenTofu working directories (VM + DNS)
+init: ## One-time: initialize the OpenTofu working directories (VM + DNS + clusters)
 	cd $(TOFU_DIR) && tofu init
 	cd $(DNS_DIR) && tofu init
+	cd $(CLUSTERS_DIR) && tofu init
 
 create-image: ## Build the golden Scaleway image with Packer (locally)
 	cd packer && packer init . && packer build -var flavor=$(FLAVOR) .
@@ -91,6 +95,68 @@ configure: ## Run Ansible: participant accounts, repo clones, training clusters
 	cd $(ANSIBLE_DIR) && ansible-playbook -i inventory/$(FLAVOR).ini site.yml -e flavor=$(FLAVOR)
 
 provision: up dns configure ## Full session bring-up (up + dns + configure)
+
+# ---------------------------------------------------------------------------
+# Lab clusters (labs/0_kubeadm) — two VMs per participant, own OpenTofu state.
+#
+# These are driven by nb=<N>, not by FLAVOR: they are the same for every
+# flavor, and their lifetime is the lab's (about two hours), not the session's.
+# Hence the separate state in tofu/clusters — one `destroy` must never
+# endanger the other.
+# ---------------------------------------------------------------------------
+
+# nb= is the participant count. Refuse anything that is not a positive integer
+# here rather than letting `tofu apply` fail halfway: this is the one command a
+# trainer types under time pressure at the start of a lab.
+define require_nb
+	case "$(nb)" in \
+	  '') echo "ERROR: nb=<N> is required, e.g. 'make $@ nb=10' for 10 participants."; exit 1 ;; \
+	  *[!0-9]*) echo "ERROR: nb must be a positive integer, got '$(nb)'."; exit 1 ;; \
+	  0) echo "ERROR: nb must be greater than 0."; exit 1 ;; \
+	esac
+endef
+
+cluster: ## Boot nb=<N> two-node kubeadm clusters, one per participant
+	@$(require_nb); \
+	cd $(CLUSTERS_DIR) && tofu apply -var cluster_count=$(nb) -auto-approve
+	@echo ""
+	@cd $(CLUSTERS_DIR) && tofu output -raw summary
+	@echo ""
+	@echo "Next: make cluster-dispatch   (hands the access to the student<N> accounts)"
+
+cluster-dispatch: ## Give each participant the ssh access to their own cluster
+	@# Reads tofu/clusters/../../ansible/data/clusters.yml, written by `make cluster`.
+	@# Runs against the training server, so it uses that flavor's inventory.
+	cd $(ANSIBLE_DIR) && ansible-playbook -i inventory/$(FLAVOR).ini lab-clusters.yml -e flavor=$(FLAVOR)
+
+cluster-list: ## Print the participant-to-address table
+	@cd $(CLUSTERS_DIR) && tofu output -raw summary
+	@echo ""
+
+cluster-ssh: ## SSH to a lab node as the trainer: make cluster-ssh node=student3-1
+	@if [ -z "$(node)" ]; then \
+	  echo "ERROR: node=<name> is required, e.g. 'make cluster-ssh node=student3-1'."; exit 1; \
+	fi; \
+	ip=$$(cd $(CLUSTERS_DIR) && tofu output -json node_ips | jq -r --arg n "$(node)" '.[$$n] // empty'); \
+	if [ -z "$$ip" ]; then \
+	  echo "ERROR: no node named '$(node)' in the state. Known nodes:"; \
+	  (cd $(CLUSTERS_DIR) && tofu output -json node_ips | jq -r 'keys[]' | sed 's/^/  /'); \
+	  exit 1; \
+	fi; \
+	ssh ubuntu@"$$ip"
+
+cluster-down: ## Destroy every lab cluster (VMs AND their IPs)
+	@# cluster_count is a required variable but irrelevant to a destroy, which
+	@# works off the state and not the configuration — pass a placeholder just to
+	@# satisfy it, the same way `down` passes image_id=unused-on-destroy.
+	@# Unlike the training server's reserved IP, nothing here carries
+	@# prevent_destroy: a lab IP that outlives its VM is billed for nothing.
+	cd $(CLUSTERS_DIR) && tofu destroy -var cluster_count=1 -auto-approve
+	@echo ""
+	@echo "Check nothing is left behind:"
+	@echo "  scw instance server list tags.0=kubeadm-lab"
+	@echo "  scw instance ip list tags.0=kubeadm-lab"
+
 
 down: ## Destroy the VM only (keeps the reserved IP for the next session)
 	@# A blanket `tofu destroy` would try to delete the IP too, which has
@@ -181,6 +247,7 @@ fmt: ## Format the OpenTofu and Packer files
 	cd $(TOFU_DIR) && tofu fmt -recursive
 	cd packer && packer fmt .
 
-validate: ## Validate the OpenTofu configuration (VM + DNS)
+validate: ## Validate the OpenTofu configuration (VM + DNS + clusters)
 	cd $(TOFU_DIR) && tofu validate
 	cd $(DNS_DIR) && tofu validate
+	cd $(CLUSTERS_DIR) && tofu validate

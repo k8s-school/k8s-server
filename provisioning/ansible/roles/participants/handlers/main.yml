@@ -2,3 +2,8 @@
 - name: Restorecon homes
   ansible.builtin.command: restorecon -R /home
   changed_when: false
+
+- name: Restart sshd
+  ansible.builtin.systemd:
+    name: "{{ 'ssh' if ansible_facts['os_family'] == 'Debian' else 'sshd' }}"
+    state: restarted
