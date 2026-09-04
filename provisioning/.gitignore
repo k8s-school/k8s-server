@@ -3,6 +3,8 @@ tofu/.terraform/
 tofu/.terraform.lock.hcl
 tofu/dns/.terraform/
 tofu/dns/.terraform.lock.hcl
+tofu/clusters/.terraform/
+tofu/clusters/.terraform.lock.hcl
 *.tfstate
 *.tfstate.*
 crash.log
@@ -13,6 +15,11 @@ packer/packer_cache/
 
 # Ansible generated inventory (written by tofu)
 ansible/inventory/*.ini
+
+# Lab cluster data, written by tofu/clusters. clusters.yml holds one private
+# key per participant; clusters.txt is the trainer's address table.
+ansible/data/clusters.yml
+tofu/clusters/clusters.txt
 
 # Vault password files
 *.vault-pass

@@ -1,0 +1,17 @@
+# Hands the participants access to the two-node clusters booted by
+# `make cluster nb=<N>` (tofu/clusters state). Run by `make cluster-dispatch`.
+#
+# Separate from site.yml because the lifetimes differ: the training server is
+# provisioned once for the session, the clusters are created and destroyed
+# around a two-hour lab.
+- name: Dispatch kubeadm lab clusters to the participants
+  hosts: "{{ flavor | default('all') }}"
+  become: true
+  vars:
+    ansible_python_interpreter: auto_silent
+  # Written by OpenTofu; holds one private key per participant, hence 0600.
+  vars_files:
+    - data/clusters.yml
+  roles:
+    - role: lab_clusters
+      tags: [clusters]

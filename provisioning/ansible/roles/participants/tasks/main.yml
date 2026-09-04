@@ -96,6 +96,32 @@
   loop_control:
     label: "{{ item.name }}"
 
+# The accounts above are created with a password, but Ubuntu's cloud images ship
+# /etc/ssh/sshd_config.d/60-cloudimg-settings.conf with `PasswordAuthentication
+# no`, so that password is unusable and participants get
+# "Permission denied (publickey)". This used to be fixed only by the guacamole
+# role, which left every flavor running without Guacamole — k8s, for one —
+# handing out credentials nobody could use.
+#
+# 00- prefix because sshd keeps the FIRST value it reads for a keyword, and the
+# drop-ins are included in lexicographic order: 00- wins over 60-cloudimg.
+- name: Allow SSH password authentication for the participant accounts
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/00-training-passwordauth.conf
+    mode: "0644"
+    content: |
+      # Managed by Ansible (participants role) — participants log in with the
+      # password the trainer hands out, not with a key.
+      PasswordAuthentication yes
+    validate: "sshd -t -f %s"
+  when: participants_enable_password_auth | default(true)
+  notify: Restart sshd
+
+# Apply now rather than at play end: the roles that follow may fail, and a
+# participant locked out of the machine is the worst thing to leave behind.
+- name: Apply the sshd change immediately
+  ansible.builtin.meta: flush_handlers
+
 # Fedora only: relabel docker-mounted dirs for SELinux (was chcon in adduser.sh).
 - name: SELinux relabel of participant dirs
   community.general.sefcontext:

@@ -1,0 +1,5 @@
+---
+# Name of the private key dropped into each participant's ~/.ssh. Distinct from
+# any personal key they may already have there: the ssh config entries point at
+# it explicitly, with IdentitiesOnly, so the two never compete.
+lab_cluster_key_name: id_kubeadm_lab
