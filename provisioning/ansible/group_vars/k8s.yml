@@ -1,12 +1,21 @@
 # Kubernetes training: shared studentN accounts; the instructor uses the
 # dedicated 'trainer' account (user_prefix/user_start inherited from all/vars.yml).
 repo: "k8s-school"
-repo_dest: ".ktbx/homefs/k8s-school"
+repo_dest: "k8s-school"
 # Trainer gets the advanced course repo (k8s-school/k8s-advanced).
 trainer_repo: "k8s-advanced"
 extra_groups: ["docker", "adm"]
+
+# Class size for this session (overrides the 30 in all/vars.yml). Each
+# participant runs their own kind cluster plus an XFCE desktop, so this is the
+# knob that actually sizes the machine.
+nb_users: 15
 
 per_user_cluster: false
 
 # Instructor cluster created at session time (participants create their own).
 training_action: "ktbx_create"
+
+# Deploy the optional Guacamole gateway (browser XFCE desktop per participant)
+# on this flavor. HTTPS follows the dns_zone set in tofu/envs/k8s.tfvars.
+guacamole_enabled: true

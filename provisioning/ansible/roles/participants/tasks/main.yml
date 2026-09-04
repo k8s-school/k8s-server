@@ -32,7 +32,7 @@
     owner: "{{ item.0.name }}"
     group: "{{ item.0.name }}"
     mode: "0755"
-  loop: "{{ participants_all | product(['.kube', '.ktbx/homefs']) | list }}"
+  loop: "{{ participants_all | product(['.kube']) | list }}"
   loop_control:
     label: "{{ item.0.name }}/{{ item.1 }}"
 
@@ -102,7 +102,7 @@
     target: "/home/{{ item.0.name }}/{{ item.1 }}(/.*)?"
     setype: svirt_sandbox_file_t
     state: present
-  loop: "{{ participants_all | product(['.kube', '.ktbx/homefs']) | list }}"
+  loop: "{{ participants_all | product(['.kube']) | list }}"
   loop_control:
     label: "{{ item.0.name }}/{{ item.1 }}"
   when: selinux_relabel | default(false)

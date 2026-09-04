@@ -25,6 +25,18 @@ password_salt: "{{ vault_password_salt }}"
 # the k8s-school CI stack; only Go is pinned here.
 go_version: "1.23.0"
 
+# Client-side tooling that used to live in the `ktbx desk` container image
+# (ktbx/_desk/Dockerfile). The container was there to give a homogeneous
+# environment on a heterogeneous client laptop; on a training server booted from
+# a baked image that job is already done, so the tools are installed on the host
+# instead — one environment for the XFCE desktop, VS Code and the terminal alike.
+kubectx_version: "v0.11.0"
+kustomize_version: "v5.8.1"
+stern_version: "v1.34.0"
+k9s_version: "v0.51.0"
+# Pinned to the version the k8s-advanced CI itself installs.
+ink_version: "v0.0.1-rc3"
+
 github_org: "k8s-school"
 
 # Shared trainer account (created on every flavor by the trainer role):
