@@ -118,6 +118,45 @@
     dest: /etc/bash_completion.d/kubectl_aliases
     mode: "0644"
 
+# Hand-written aliases, in their own file so a refresh of the generated
+# kubectl_aliases above never clobbers them.
+#
+# NOT in /etc/bash_completion.d/: that directory only gets sourced by
+# bash-completion, which Ubuntu loads from the *skeleton* ~/.bashrc — the block
+# in /etc/bash.bashrc ships commented out. Accounts created from /etc/skel
+# therefore get it, but /root/.bashrc has no equivalent, so root silently ends
+# up without the aliases (it has none of the kubectl ones either). Sourcing from
+# /etc/bash.bashrc is what actually reaches *every* interactive bash. Safe
+# despite running before ~/.bashrc: unlike PS1, the distro file defines no alias
+# of these names to overwrite them.
+- name: Install the shared shell aliases
+  ansible.builtin.copy:
+    dest: /etc/training-aliases.sh
+    mode: "0644"
+    content: |
+      # Managed by Ansible (base_tools role). Sourced from /etc/bash.bashrc.
+
+      # Interactive shells only: an alias is meaningless to a script, and the
+      # file is read before ~/.bashrc bails out on non-interactive shells.
+      case $- in *i*) ;; *) return ;; esac
+
+      # Throwaway pod with an interactive shell, deleted on exit (--rm). Useful
+      # from inside the cluster: nslookup a Service, curl a ClusterIP, check
+      # what a NetworkPolicy actually blocks.
+      #
+      # IfNotPresent rather than the Always that a pinned tag would still get
+      # here: the image is the same for everyone, so the first pull on a node
+      # serves every later shell on it instead of re-hitting Docker Hub — which
+      # also keeps the class clear of the anonymous pull rate limit.
+      alias kshell='kubectl run -i --rm --tty shell --image={{ kshell_image }} --image-pull-policy=IfNotPresent -- bash'
+
+- name: Source the shared aliases from every interactive bash
+  ansible.builtin.blockinfile:
+    path: /etc/bash.bashrc
+    marker: "# {mark} TRAINING ALIASES"
+    block: |
+      if [ -r /etc/training-aliases.sh ]; then . /etc/training-aliases.sh; fi
+
 # The toolbox shipped its own /opt/bin on the PATH; clone-school.sh is the one
 # script from it still worth having — it clones/updates the four training repos
 # into $HOME. /usr/local/bin is already on every account's PATH, so it needs no

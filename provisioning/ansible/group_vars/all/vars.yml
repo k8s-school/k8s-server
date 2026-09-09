@@ -44,6 +44,13 @@ kubescape_version: "4.0.13"
 # builds and works.
 rakkess_version: "0.5.1"
 
+# Image behind the `kshell` alias (a throwaway pod with an interactive shell,
+# used to poke at a cluster from the inside: DNS, service reachability, network
+# policies). Pinned to a tag rather than left on `ubuntu`/`latest` so every
+# participant lands in the same userland, and on the current LTS so apt-get in
+# that shell still resolves a supported archive.
+kshell_image: "ubuntu:26.04"
+
 github_org: "k8s-school"
 
 # Shared trainer account (created on every flavor by the trainer role):
