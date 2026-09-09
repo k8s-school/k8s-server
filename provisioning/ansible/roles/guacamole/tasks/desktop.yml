@@ -63,6 +63,18 @@
     state: present
     update_cache: true
 
+# The X session's own fallback keymap, for the reconnection case described in
+# defaults/main.yml. localectl refuses to write this on Debian/Ubuntu ("Setting
+# X11 and console keymaps is not supported"), so edit the file console-setup
+# actually reads. No handler: this only has to be right for sessions started
+# later, and re-running setupcon would not touch the ones already open.
+- name: Set the desktop's fallback keyboard layout
+  ansible.builtin.lineinfile:
+    path: /etc/default/keyboard
+    regexp: '^XKBLAYOUT='
+    line: 'XKBLAYOUT="{{ guacamole_desktop_xkb_layout }}"'
+    create: false
+
 # Window-tiling helper, in the system PATH so every participant account has it
 # without a per-user copy: run 'layout.sh' from the desktop terminal and the
 # browser takes the left half of the screen, the terminal the right.
