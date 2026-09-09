@@ -80,6 +80,16 @@ guacamole_embed_password: true
 # keymaps guacd ships are listed in the Guacamole manual (RDP > server-layout).
 guacamole_rdp_server_layout: "fr-fr-azerty"
 
+# Layout the X session falls back on when xrdp does not (re)apply the one guacd
+# announces. xrdp sets the keymap when the RDP connection is established; if the
+# tunnel is cut mid-session — a participant suspends their laptop — guacd can
+# reattach to the still-running X session without xrdp-chansrv replaying the
+# keymap, and the session silently drops to the system default. Left at the
+# Ubuntu default of "us" that means AZERTY keyboards start typing QWERTY:
+# digits need Shift, and the shifted symbols land on the wrong keys. Keep this
+# in sync with guacamole_rdp_server_layout.
+guacamole_desktop_xkb_layout: "fr"
+
 # --- Latency / bandwidth tuning (rdp mode) ------------------------------------
 # guacd decodes RDP server-side and re-encodes it for the browser, so every
 # pixel the desktop redraws costs CPU *and* WAN bandwidth. The defaults below
