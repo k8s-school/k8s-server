@@ -1,7 +1,7 @@
 #!/bin/bash
 # Pré-crée le cluster kind de chaque compte et y précharge les images de la
 # démo, SANS installer la démo — le helm install est laissé au participant en
-# séance ('up.sh' sans -c, ~2-3 min sur un cluster déjà prêt).
+# séance ('up.sh' sans flag, ~1 min sur un cluster déjà prêt).
 #
 # Lancé sur le serveur par 'make precreate' (via ssh ... bash -s), qui passe :
 #   USERS  la liste des comptes ("trainer student1 student2 ...")
@@ -18,13 +18,13 @@ done_users=""   # seuls les comptes réellement traités : un compte absent n'es
 for u in $USERS; do
     id "$u" > /dev/null 2>&1 || { echo "[$(date +%T)] $u : compte absent, ignoré"; continue; }
     done_users="$done_users $u"
-    # Mettre le clone à jour d'abord : un up.sh d'avant le mode -P échouerait sur
-    # « illegal option -- P ». make configure rafraîchit les clones, mais on peut
-    # très bien avoir poussé un correctif de lab depuis.
+    # Mettre le clone à jour d'abord : un up.sh trop ancien ne connaîtrait pas le
+    # mode -P et échouerait sur « illegal option -- P ». make configure rafraîchit
+    # les clones, mais on peut très bien avoir poussé un correctif de lab depuis.
     sudo -u "$u" -i bash -lc "cd ~/$REPO && git pull --ff-only -q" 2>&1 \
         | sed "s/^/  $u (git pull) : /" || true
-    echo "[$(date +%T)] $u : up.sh -c -P (créer + précharger, sans déployer)"
-    sudo -u "$u" -i bash -lc "cd ~/$REPO && ./scripts/up.sh -c -P" > "$log/$u.log" 2>&1 &
+    echo "[$(date +%T)] $u : up.sh -P (cluster + images, sans déployer)"
+    sudo -u "$u" -i bash -lc "cd ~/$REPO && ./scripts/up.sh -P" > "$log/$u.log" 2>&1 &
     n=$((n + 1))
     [ $((n % WAVE)) -eq 0 ] && { echo "  -- vague de $WAVE lancée, on attend --"; wait; }
 done
@@ -40,5 +40,5 @@ for u in $done_users; do
         *) printf '  %-12s ÉCHEC : %s\n' "$u" "$last"; rc=1 ;;
     esac
 done
-[ $rc -eq 0 ] && echo "Tous les clusters sont prêts. En séance : ./scripts/up.sh (sans -c)."
+[ $rc -eq 0 ] && echo "Tous les clusters sont prêts. En séance : ./scripts/up.sh."
 exit $rc

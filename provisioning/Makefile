@@ -138,15 +138,16 @@ dns: check-tfvars ## Point the flavor's DNS record at the reserved IP (no-op wit
 configure: ## Run Ansible: participant accounts, repo clones, training clusters
 	cd $(ANSIBLE_DIR) && ansible-playbook -i inventory/$(FLAVOR).ini site.yml -e flavor=$(FLAVOR)$(if $(NB_USERS), -e nb_users=$(NB_USERS))
 
-provision: up dns configure ## Full session bring-up (up + dns + configure)
+provision: up dns configure precreate ## Full session bring-up (up + dns + configure + precreate)
 
 precreate: ## Pre-create every account's cluster + preload images (no demo), in waves of WAVE=4
-	@grep -q '^per_user_cluster:[[:space:]]*true' $(ANSIBLE_DIR)/group_vars/$(FLAVOR).yml \
-	  || { echo "ERROR: precreate needs one kind cluster per account (per_user_cluster: true)."; \
-	       echo "       FLAVOR=$(FLAVOR) does not work that way — only 'otel' does today."; \
-	       echo "       The k8s/openshift flavors use the cluster-* targets instead (see README.md)."; \
-	       exit 1; }
-	@nb='$(NB_USERS)'; \
+	@# Nothing to pre-create unless the flavor gives each account its own kind
+	@# cluster. A no-op rather than an error, so 'provision' stays valid for every
+	@# flavor: k8s and openshift use the cluster-* targets instead (see README.md).
+	@grep -q '^per_user_cluster:[[:space:]]*true' $(ANSIBLE_DIR)/group_vars/$(FLAVOR).yml || { \
+	  echo "precreate: FLAVOR=$(FLAVOR) has no per-account kind cluster — nothing to do."; \
+	  exit 0; }; \
+	nb='$(NB_USERS)'; \
 	[ -n "$$nb" ] || nb=$$(sed -n 's/^nb_users:[[:space:]]*\([0-9]\{1,\}\).*/\1/p' $(ANSIBLE_DIR)/group_vars/$(FLAVOR).yml); \
 	repo=$$(sed -n 's/^repo_dest:[[:space:]]*"\([^"]*\)".*/\1/p' $(ANSIBLE_DIR)/group_vars/$(FLAVOR).yml); \
 	[ -n "$$nb" ] && [ -n "$$repo" ] || { echo "ERROR: could not read nb_users/repo_dest from group_vars/$(FLAVOR).yml"; exit 1; }; \
