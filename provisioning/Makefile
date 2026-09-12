@@ -35,6 +35,9 @@ TFVARS := envs/$(FLAVOR)$(if $(SIZE),-$(SIZE)).tfvars
 # Mainly there to pair with SIZE=small: a validation machine has no room for the
 # session headcount. Empty = whatever group_vars/<flavor>.yml says.
 NB_USERS ?=
+# Number of clusters 'make precreate' brings up at once. Their 'kind load' of
+# ~5 GB each is I/O-bound; too many at once saturates the disk.
+WAVE ?= 4
 
 INVENTORY := $(ANSIBLE_DIR)/inventory/$(FLAVOR).ini
 
@@ -49,7 +52,7 @@ tfvar = $$(grep -E '^[[:space:]]*$(1)[[:space:]]*=' $(TOFU_DIR)/$(TFVARS) | sed 
 IMAGE_IDS = scw instance image list zone=$(ZONE) -o json | jq -r --arg t "flavor=$(FLAVOR)" '.[] | select((.tags // []) | index($$t)) | .id'
 
 .DEFAULT_GOAL := help
-.PHONY: help init check-tfvars create-image up dns down configure provision ssh ip fqdn fmt validate delete-image delete-ip delete-dns status \
+.PHONY: help init check-tfvars create-image up dns down configure provision precreate ssh ip fqdn fmt validate delete-image delete-ip delete-dns status \
         cluster cluster-dispatch cluster-list cluster-ssh cluster-down
 
 help: ## Show this help (default target)
@@ -136,6 +139,16 @@ configure: ## Run Ansible: participant accounts, repo clones, training clusters
 	cd $(ANSIBLE_DIR) && ansible-playbook -i inventory/$(FLAVOR).ini site.yml -e flavor=$(FLAVOR)$(if $(NB_USERS), -e nb_users=$(NB_USERS))
 
 provision: up dns configure ## Full session bring-up (up + dns + configure)
+
+precreate: ## Pre-create every account's cluster + preload images (no demo), in waves of WAVE=4
+	@nb='$(NB_USERS)'; \
+	[ -n "$$nb" ] || nb=$$(sed -n 's/^nb_users:[[:space:]]*\([0-9]\{1,\}\).*/\1/p' $(ANSIBLE_DIR)/group_vars/$(FLAVOR).yml); \
+	repo=$$(sed -n 's/^repo_dest:[[:space:]]*"\([^"]*\)".*/\1/p' $(ANSIBLE_DIR)/group_vars/$(FLAVOR).yml); \
+	[ -n "$$nb" ] && [ -n "$$repo" ] || { echo "ERROR: could not read nb_users/repo_dest from group_vars/$(FLAVOR).yml"; exit 1; }; \
+	ip=$$(cd $(TOFU_DIR) && tofu output -raw public_ip) || { echo "ERROR: no server (run 'make up FLAVOR=$(FLAVOR)' first)."; exit 1; }; \
+	users="trainer"; for i in $$(seq 1 $$nb); do users="$$users student$$i"; done; \
+	echo "precreate: $$nb participants + trainer on $$ip, waves of $(WAVE), clone ~/$$repo"; \
+	ssh $(SSH_USER)@$$ip "USERS='$$users' REPO='$$repo' WAVE='$(WAVE)' bash -s" < util/precreate.sh
 
 # ---------------------------------------------------------------------------
 # Lab clusters (labs/0_kubeadm) — two VMs per participant, own OpenTofu state.

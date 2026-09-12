@@ -1,0 +1,37 @@
+#!/bin/bash
+# Pré-crée le cluster kind de chaque compte et y précharge les images de la
+# démo, SANS installer la démo — le helm install est laissé au participant en
+# séance ('up.sh' sans -c, ~2-3 min sur un cluster déjà prêt).
+#
+# Lancé sur le serveur par 'make precreate' (via ssh ... bash -s), qui passe :
+#   USERS  la liste des comptes ("trainer student1 student2 ...")
+#   REPO   le nom du clone dans chaque home (ex. otel-labs)
+#   WAVE   la taille des vagues (les 'kind load' simultanés saturent le disque,
+#          d'où le lancement par paquets plutôt que tous d'un coup)
+set -u
+: "${USERS:?}" "${REPO:?}" "${WAVE:=4}"
+export LC_ALL=C
+log=/tmp/precreate; mkdir -p "$log"
+
+n=0
+for u in $USERS; do
+    id "$u" > /dev/null 2>&1 || { echo "[$(date +%T)] $u : compte absent, ignoré"; continue; }
+    echo "[$(date +%T)] $u : up.sh -c -P (créer + précharger, sans déployer)"
+    sudo -u "$u" -i bash -lc "cd ~/$REPO && ./scripts/up.sh -c -P" > "$log/$u.log" 2>&1 &
+    n=$((n + 1))
+    [ $((n % WAVE)) -eq 0 ] && { echo "  -- vague de $WAVE lancée, on attend --"; wait; }
+done
+wait
+
+echo
+echo "=== Résultat ==="
+rc=0
+for u in $USERS; do
+    last=$(tail -1 "$log/$u.log")
+    case "$last" in
+        *"ready, images preloaded"*) printf '  %-12s OK\n' "$u" ;;
+        *) printf '  %-12s ÉCHEC : %s\n' "$u" "$last"; rc=1 ;;
+    esac
+done
+[ $rc -eq 0 ] && echo "Tous les clusters sont prêts. En séance : ./scripts/up.sh (sans -c)."
+exit $rc
