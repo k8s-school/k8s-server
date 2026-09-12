@@ -1,7 +1,7 @@
 ---
 # Per-session trainer account. One shared 'trainer' user across every flavor,
 # with passwordless sudo and docker access, plus a clone of the flavor's
-# advanced repo (k8s-advanced / openshift-advanced / otel) in its home.
+# advanced repo (k8s-advanced / openshift-advanced / otel-labs) in its home.
 
 - name: Create the trainer account
   ansible.builtin.user:

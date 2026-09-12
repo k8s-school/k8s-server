@@ -13,5 +13,6 @@ output "instance_id" {
 }
 
 output "ssh_command" {
-  value = "ssh k8s0@${scaleway_instance_ip.main.address}"
+  description = "Admin access, via the operator key (same as 'make ssh'). Participants log in as student<N>, the instructor as trainer."
+  value       = "ssh root@${scaleway_instance_ip.main.address}"
 }

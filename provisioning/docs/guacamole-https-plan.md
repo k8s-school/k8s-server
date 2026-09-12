@@ -28,7 +28,7 @@ clair.
 
    **Géré par OpenTofu**, pas à la main : `make dns FLAVOR=otel` applique l'état
    dédié `tofu/dns/`, qui crée l'enregistrement à partir de
-   `dns_zone`/`dns_subdomain` déclarés dans `tofu/envs/otel.tfvars`, pointé sur
+   `dns_zone`/`dns_subdomain` déclarés dans `tofu/envs/otel-large.tfvars`, pointé sur
    l'IP réservée. Cette IP est protégée par `prevent_destroy` et conservée par
    `make down`, donc l'enregistrement est écrit une fois et ne bouge plus.
    `make provision` enchaîne `up` → `dns` → `configure`.
@@ -178,7 +178,7 @@ configuré à la main.
 - Adapter le message final `Show how to reach Guacamole` :
   `https://{{ guacamole_fqdn }}/` au lieu de `http://<ip>:<port>/guacamole`.
 
-### `tofu/envs/otel.tfvars`
+### `tofu/envs/otel-large.tfvars`
 
 ```hcl
 dns_zone      = "k8s-school.fr"
@@ -272,7 +272,7 @@ si `caddy_data` n'est pas conservé entre les sessions.
 
 ## 6. Rollback
 
-Retirer `dns_zone` de `tofu/envs/otel.tfvars`, puis `make up && make configure
+Retirer `dns_zone` de `tofu/envs/otel-large.tfvars`, puis `make up && make configure
 FLAVOR=otel` : l'inventaire regénéré ne porte plus de `guacamole_fqdn`, le rôle
 repasse en HTTP, `guacamole` republie sur le 80 et Caddy disparaît. Attention,
 cela supprime aussi l'enregistrement DNS.

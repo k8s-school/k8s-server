@@ -48,6 +48,39 @@ set -a; . ~/.config/ovh/k8s-school.env; set +a && make dns FLAVOR=otel
 Nothing else needs them: the DNS record lives in its own OpenTofu state
 (`tofu/dns/`), so a flavor without a domain name never touches the OVH provider.
 
+### Machine size (`SIZE=`)
+
+A flavor can have more than one machine size. `SIZE=` selects the tfvars and
+nothing else — the baked image, the `group_vars` and the inventory keep
+following `FLAVOR`, so a size variant is *the same environment on a
+different-sized machine*, never a different environment.
+
+```bash
+make provision FLAVOR=otel                          # envs/otel-large.tfvars (the session, default)
+make provision FLAVOR=otel SIZE=small NB_USERS=2    # envs/otel-small.tfvars (a rehearsal)
+```
+
+`otel` ships two and no unsuffixed tfvars, defaulting to `large`: a GP1-L for a
+room of ten, and a GP1-S to rehearse the labs alone for a quarter of the price.
+The sizing evidence is in the tfvars comments and in the otel-labs repo's
+`NOTE-dimensionnement-serveur.md`; `util/sizing-report.sh`, run on the server,
+measures what a participant really costs.
+
+`NB_USERS=<N>` overrides the flavor's `nb_users` for `make configure` only. It
+pairs with `SIZE=small`, which has no room for the session headcount.
+
+Both variants share one OpenTofu state, one reserved IP and one DNS record, so
+**only one exists at a time**. Switching size means destroying first:
+
+```bash
+make down && make up SIZE=small
+```
+
+Applying straight over a live server of the other size would ask Scaleway to
+change the commercial type *and* resize the root volume in place, which it
+refuses. `make down` reads the state, not the tfvars, so it works whatever
+`SIZE` you pass it — or none at all.
+
 Typical lifecycle:
 
 1. **Once** (or when the tooling changes): `make create-image` bakes the golden

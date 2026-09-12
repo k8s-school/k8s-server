@@ -1,0 +1,2 @@
+- Publier https://k8s-school.fr/labs/k8s : la page /labs/ du site pointe dessus,
+  mais l'URL renvoie 404 (le bookmark Firefox pousse deja le lien)

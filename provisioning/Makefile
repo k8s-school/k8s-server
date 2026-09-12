@@ -8,7 +8,34 @@ TOFU_DIR := tofu
 DNS_DIR := tofu/dns
 CLUSTERS_DIR := tofu/clusters
 ANSIBLE_DIR := ansible
-TFVARS := envs/$(FLAVOR).tfvars
+
+# Machine size, orthogonal to FLAVOR. It selects the tfvars and nothing else:
+# the baked image, the group_vars and the inventory keep following FLAVOR, so a
+# SIZE variant is the same environment on a different-sized machine, never a
+# different environment.
+#
+# 'otel' ships two sizes and no unsuffixed tfvars — large for the session, small
+# to rehearse the labs alone — and defaults to large. The other flavors have a
+# single envs/<flavor>.tfvars and no size at all, so SIZE stays undefined there
+# and expands to nothing. (A bare `SIZE ?=` would define it as empty and defeat
+# the conditional default below, hence the ifeq rather than one assignment.)
+#
+# All sizes of a flavor share one OpenTofu state, one reserved IP and one DNS
+# record, so only one of them exists at a time. Switching size therefore means:
+#   make down && make up SIZE=small
+# Applying straight over a live server of another size would ask Scaleway to
+# change the commercial type AND resize the root volume in place, which it
+# refuses. `make down` works off the state, so any SIZE (or none) destroys.
+ifeq ($(FLAVOR),otel)
+SIZE ?= large
+endif
+TFVARS := envs/$(FLAVOR)$(if $(SIZE),-$(SIZE)).tfvars
+
+# Participant count for `make configure`, overriding the flavor's group_vars.
+# Mainly there to pair with SIZE=small: a validation machine has no room for the
+# session headcount. Empty = whatever group_vars/<flavor>.yml says.
+NB_USERS ?=
+
 INVENTORY := $(ANSIBLE_DIR)/inventory/$(FLAVOR).ini
 
 # Pull a quoted value out of the flavor's tfvars, e.g. $(call tfvar,dns_zone).
@@ -22,12 +49,13 @@ tfvar = $$(grep -E '^[[:space:]]*$(1)[[:space:]]*=' $(TOFU_DIR)/$(TFVARS) | sed 
 IMAGE_IDS = scw instance image list zone=$(ZONE) -o json | jq -r --arg t "flavor=$(FLAVOR)" '.[] | select((.tags // []) | index($$t)) | .id'
 
 .DEFAULT_GOAL := help
-.PHONY: help init create-image up dns down configure provision ssh ip fqdn fmt validate delete-image delete-ip delete-dns status \
+.PHONY: help init check-tfvars create-image up dns down configure provision ssh ip fqdn fmt validate delete-image delete-ip delete-dns status \
         cluster cluster-dispatch cluster-list cluster-ssh cluster-down
 
 help: ## Show this help (default target)
-	@echo "Training provisioning — usage: make <target> [FLAVOR=k8s|openshift|otel]"
-	@echo "Current FLAVOR=$(FLAVOR)"
+	@echo "Training provisioning — usage: make <target> [FLAVOR=k8s|openshift|otel] [SIZE=small]"
+	@echo "Current FLAVOR=$(FLAVOR), tfvars=$(TFVARS)$(if $(NB_USERS), nb_users=$(NB_USERS) (override))"
+	@echo "SIZE picks the machine for the same flavor (otel: large|small); NB_USERS=<N> overrides the headcount."
 	@echo "The cluster-* targets take nb=<N> instead, not FLAVOR — see README.md."
 	@echo
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -37,6 +65,19 @@ init: ## One-time: initialize the OpenTofu working directories (VM + DNS + clust
 	cd $(TOFU_DIR) && tofu init
 	cd $(DNS_DIR) && tofu init
 	cd $(CLUSTERS_DIR) && tofu init
+
+check-tfvars: ## Fail early when FLAVOR/SIZE name no tfvars file
+	@test -f $(TOFU_DIR)/$(TFVARS) || { \
+	  echo "ERROR: $(TOFU_DIR)/$(TFVARS) does not exist."; \
+	  echo "FLAVOR=$(FLAVOR)$(if $(SIZE), SIZE=$(SIZE)) names no environment. Available:"; \
+	  for f in $(TOFU_DIR)/envs/*.tfvars; do \
+	    b=$$(basename "$$f" .tfvars); \
+	    case "$$b" in \
+	      *-*) echo "  FLAVOR=$${b%%-*} SIZE=$${b#*-}" ;; \
+	      *)   echo "  FLAVOR=$$b" ;; \
+	    esac; \
+	  done; \
+	  exit 1; }
 
 create-image: ## Build the golden Scaleway image with Packer (locally)
 	cd packer && packer init . && packer build -var flavor=$(FLAVOR) .
@@ -55,7 +96,7 @@ create-image: ## Build the golden Scaleway image with Packer (locally)
 	  echo "Nothing to copy: 'make up FLAVOR=$(FLAVOR)' resolves it by tag automatically."; \
 	fi
 
-up: ## Create/update the VM + reserved IP, and write the Ansible inventory
+up: check-tfvars ## Create/update the VM + reserved IP, and write the Ansible inventory
 	@ids=$$($(IMAGE_IDS)); n=$$(printf '%s\n' "$$ids" | grep -c .); \
 	if [ "$$n" -gt 1 ]; then \
 	  echo "ERROR: $$n images are tagged 'flavor=$(FLAVOR)' — cannot pick one:"; \
@@ -74,7 +115,7 @@ up: ## Create/update the VM + reserved IP, and write the Ansible inventory
 	  exit 1; \
 	fi
 
-dns: ## Point the flavor's DNS record at the reserved IP (no-op without dns_zone)
+dns: check-tfvars ## Point the flavor's DNS record at the reserved IP (no-op without dns_zone)
 	@# Separate OpenTofu state (tofu/dns): the OVH provider checks its credentials
 	@# as soon as it is configured, so keeping it out of the VM state is what lets
 	@# a flavor with no domain name run without any OVH credentials at all.
@@ -92,7 +133,7 @@ dns: ## Point the flavor's DNS record at the reserved IP (no-op without dns_zone
 	tofu apply -var dns_zone="$$zone" -var dns_subdomain="$${sub:-training}" -var target_ip="$$ip" -auto-approve
 
 configure: ## Run Ansible: participant accounts, repo clones, training clusters
-	cd $(ANSIBLE_DIR) && ansible-playbook -i inventory/$(FLAVOR).ini site.yml -e flavor=$(FLAVOR)
+	cd $(ANSIBLE_DIR) && ansible-playbook -i inventory/$(FLAVOR).ini site.yml -e flavor=$(FLAVOR)$(if $(NB_USERS), -e nb_users=$(NB_USERS))
 
 provision: up dns configure ## Full session bring-up (up + dns + configure)
 
@@ -158,7 +199,7 @@ cluster-down: ## Destroy every lab cluster (VMs AND their IPs)
 	@echo "  scw instance ip list tags.0=kubeadm-lab"
 
 
-down: ## Destroy the VM only (keeps the reserved IP for the next session)
+down: check-tfvars ## Destroy the VM only (keeps the reserved IP for the next session)
 	@# A blanket `tofu destroy` would try to delete the IP too, which has
 	@# prevent_destroy set. Target the server so the IP (and its state) survive;
 	@# null_resource.wait_for_ssh is torn down with it as a dependent.
@@ -174,7 +215,7 @@ delete-image: ## Delete every Scaleway image (+ snapshot) tagged flavor=<FLAVOR>
 	  scw instance image delete "$$img" with-snapshots=true; \
 	done
 
-delete-ip: ## Release the reserved (floating) IP for this flavor
+delete-ip: check-tfvars ## Release the reserved (floating) IP for this flavor
 	@name=$$(grep -E '^[[:space:]]*instance_name' $(TOFU_DIR)/$(TFVARS) | sed -E 's/.*"([^"]+)".*/\1/'); \
 	if [ -z "$$name" ]; then echo "No instance_name in $(TFVARS)"; exit 1; fi; \
 	ip_id=$$(scw instance ip list tags.0="$$name" | grep -w "$$name" | awk '{print $$1}'); \
@@ -182,7 +223,7 @@ delete-ip: ## Release the reserved (floating) IP for this flavor
 	echo "Deleting reserved IP $$ip_id (tag $$name)"; \
 	scw instance ip delete "$$ip_id"
 
-delete-dns: ## Remove the DNS record for this flavor (the reserved IP is untouched)
+delete-dns: check-tfvars ## Remove the DNS record for this flavor (the reserved IP is untouched)
 	@zone="$(call tfvar,dns_zone)"; \
 	if [ -z "$$zone" ]; then echo "No dns_zone in $(TFVARS), nothing to delete"; exit 0; fi; \
 	cd $(DNS_DIR) && tofu destroy -auto-approve \

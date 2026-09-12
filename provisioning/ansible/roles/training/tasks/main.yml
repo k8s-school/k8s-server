@@ -15,7 +15,7 @@
   become: true
   ansible.builtin.command: ktbx install helm
   changed_when: false
-  # Students create their own cluster with the otel repo's up.sh, so nothing
+  # Students create their own cluster with the otel-labs repo's up.sh, so nothing
   # cluster-side is provisioned here.
 
 - name: Crc setup and start (openshift flavor)

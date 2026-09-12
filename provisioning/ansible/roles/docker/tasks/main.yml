@@ -54,7 +54,7 @@
 # pipes that tar into `ctr images import --all-platforms`, which tries to
 # resolve the other architectures and dies with:
 #   ctr: content digest sha256:...: not found
-# That breaks the image preloading in the otel repo's up.sh for every student.
+# That breaks the image preloading in the otel-labs repo's up.sh for every student.
 # Reproduced on 2026-07-27 with kind 0.27 AND 0.30, so it is the store, not kind.
 # Pin the classic overlay2 store, which is what working local setups still use.
 - name: Keep the classic overlay2 image store (kind cannot load from containerd)

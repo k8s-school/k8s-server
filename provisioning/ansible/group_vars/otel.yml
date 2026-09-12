@@ -1,16 +1,30 @@
 # OpenTelemetry training: one account + one kind cluster per student.
 # studentN accounts + the 'trainer' account come from all/vars.yml.
 #
-# Sizing, measured on a running lab (26 demo pods + load generator): one
-# participant's stack costs ~6.4 GiB of RAM, ~1.7 vCPU and ~11 GB of images in
-# its kind node. On the GP1-M booted by envs/otel.tfvars (16 vCPU / 64 GiB /
-# 100 GB disk) that is ~8 concurrent stacks on RAM, and the disk runs out
-# first - raise root_volume_size_gb before raising this.
-nb_users: 20
-repo: "otel"
-repo_dest: "otel"
-# Trainer gets the same repo (k8s-school/otel).
-trainer_repo: "otel"
+# Sizing, measured 2026-09-08 on a running stack (28 demo pods + load generator
+# + the lab 2 review-service): 6.5 GiB of RAM (6.3-6.6), 0.89 vCPU (0.37-1.48)
+# and 20 GB in the kind node's image store. Add the Guacamole XFCE desktop and
+# Firefox and budget ~8.5 GiB and 21 GB per participant.
+#
+# Sample the CPU over at least a few minutes, and beware the aliasing: the stack
+# has a ~40 s cycle, so a 20 s interval locks onto one phase and reports either
+# 0.4 or 1.4 depending on which. The figure above averages twelve samples.
+#
+# An earlier version of this comment said 11 GB of disk and 1.7 vCPU. The disk
+# was wrong by half - it lives in a Docker volume mounted on /var, which
+# `docker ps -s` does not show - and the CPU high by about a factor of two.
+# Disk is the resource that runs out first: raise root_volume_size_gb before
+# raising this.
+#
+# envs/otel-large.tfvars boots a GP1-L (32 vCPU / 128 GiB / 300 GB) for 12 accounts:
+# 10 participants, the trainer, and one spare. Rehearsing on the SIZE=small
+# machine? Do not edit this - pass `make provision SIZE=small NB_USERS=2`
+# (SIZE selects the tfvars, NB_USERS reaches Ansible; configure ignores SIZE).
+nb_users: 12
+repo: "otel-labs"
+repo_dest: "otel-labs"
+# Trainer gets the same repo (k8s-school/otel-labs).
+trainer_repo: "otel-labs"
 extra_groups: ["docker", "adm"]
 
 # Each student gets CLUSTER_NAME + PF_ADDR/PF_HOST in their .bashrc, and
