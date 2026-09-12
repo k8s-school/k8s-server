@@ -14,8 +14,15 @@ export LC_ALL=C
 log=/tmp/precreate; mkdir -p "$log"
 
 n=0
+done_users=""   # seuls les comptes réellement traités : un compte absent n'est pas un échec
 for u in $USERS; do
     id "$u" > /dev/null 2>&1 || { echo "[$(date +%T)] $u : compte absent, ignoré"; continue; }
+    done_users="$done_users $u"
+    # Mettre le clone à jour d'abord : un up.sh d'avant le mode -P échouerait sur
+    # « illegal option -- P ». make configure rafraîchit les clones, mais on peut
+    # très bien avoir poussé un correctif de lab depuis.
+    sudo -u "$u" -i bash -lc "cd ~/$REPO && git pull --ff-only -q" 2>&1 \
+        | sed "s/^/  $u (git pull) : /" || true
     echo "[$(date +%T)] $u : up.sh -c -P (créer + précharger, sans déployer)"
     sudo -u "$u" -i bash -lc "cd ~/$REPO && ./scripts/up.sh -c -P" > "$log/$u.log" 2>&1 &
     n=$((n + 1))
@@ -26,7 +33,7 @@ wait
 echo
 echo "=== Résultat ==="
 rc=0
-for u in $USERS; do
+for u in $done_users; do
     last=$(tail -1 "$log/$u.log")
     case "$last" in
         *"ready, images preloaded"*) printf '  %-12s OK\n' "$u" ;;

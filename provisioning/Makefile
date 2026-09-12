@@ -141,6 +141,11 @@ configure: ## Run Ansible: participant accounts, repo clones, training clusters
 provision: up dns configure ## Full session bring-up (up + dns + configure)
 
 precreate: ## Pre-create every account's cluster + preload images (no demo), in waves of WAVE=4
+	@grep -q '^per_user_cluster:[[:space:]]*true' $(ANSIBLE_DIR)/group_vars/$(FLAVOR).yml \
+	  || { echo "ERROR: precreate needs one kind cluster per account (per_user_cluster: true)."; \
+	       echo "       FLAVOR=$(FLAVOR) does not work that way — only 'otel' does today."; \
+	       echo "       The k8s/openshift flavors use the cluster-* targets instead (see README.md)."; \
+	       exit 1; }
 	@nb='$(NB_USERS)'; \
 	[ -n "$$nb" ] || nb=$$(sed -n 's/^nb_users:[[:space:]]*\([0-9]\{1,\}\).*/\1/p' $(ANSIBLE_DIR)/group_vars/$(FLAVOR).yml); \
 	repo=$$(sed -n 's/^repo_dest:[[:space:]]*"\([^"]*\)".*/\1/p' $(ANSIBLE_DIR)/group_vars/$(FLAVOR).yml); \
