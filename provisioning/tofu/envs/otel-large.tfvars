@@ -21,10 +21,11 @@ instance_type = "GP1-L"
 # injects it. Build one first: `make create-image FLAVOR=otel`. There is no
 # fallback distro — without a baked image `make up` refuses to run.
 
-# 255 GB needed, 300 booked. The margin is not padding: kind image stores grow
-# as participants rebuild the review-service, and this volume is what runs out
-# first — long before the RAM does.
-root_volume_size_gb = 300
+# Measured 2026-09-13: 198 GB used with 9 accounts after every lab and two
+# rebuilds, ~21 GB per participant, so ~240 GB at 11. 300 left 30 GB for two
+# days of deploy.sh; 400 is the margin. This volume is what runs out first —
+# long before the RAM does — and block storage is cheap.
+root_volume_size_gb = 400
 
 # Public name of the training server: training.k8s-school.fr, A record created
 # in the OVH-hosted zone and pointed at the reserved IP. This is what turns on
