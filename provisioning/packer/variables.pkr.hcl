@@ -11,8 +11,16 @@ variable "zone" {
 
 variable "source_image" {
   type        = string
-  default     = "ubuntu_noble"
-  description = "Base distro image label. Use 'fedora' for the openshift flavor."
+  default     = ""
+  description = "Base distro image label. Empty = the flavor's distro (see local.source_image)."
+}
+
+# The flavor decides the distro: openshift runs crc on Fedora, the others run on
+# Ubuntu. Resolved here rather than by the caller, so `make create-image` and the
+# GHA workflow (which both pass only -var flavor=...) bake the right base. Before
+# this, FLAVOR=openshift silently baked an Ubuntu image tagged flavor=openshift.
+locals {
+  source_image = var.source_image != "" ? var.source_image : lookup({ openshift = "fedora_44" }, var.flavor, "ubuntu_noble")
 }
 
 variable "commercial_type" {

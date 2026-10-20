@@ -150,9 +150,11 @@
       # also keeps the class clear of the anonymous pull rate limit.
       alias kshell='kubectl run -i --rm --tty shell --image={{ kshell_image }} --image-pull-policy=IfNotPresent -- bash'
 
+# Fedora's counterpart is /etc/bashrc, sourced by both /etc/skel/.bashrc and
+# /root/.bashrc, so the same reasoning holds there.
 - name: Source the shared aliases from every interactive bash
   ansible.builtin.blockinfile:
-    path: /etc/bash.bashrc
+    path: "{{ '/etc/bash.bashrc' if ansible_facts['os_family'] == 'Debian' else '/etc/bashrc' }}"
     marker: "# {mark} TRAINING ALIASES"
     block: |
       if [ -r /etc/training-aliases.sh ]; then . /etc/training-aliases.sh; fi

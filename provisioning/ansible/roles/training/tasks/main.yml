@@ -20,8 +20,4 @@
 
 - name: Crc setup and start (openshift flavor)
   when: training_action == "crc"
-  ansible.builtin.debug:
-    msg: >-
-      TODO: port bootstrap/fedora/crc-setup.sh + crc-start.sh here.
-      Needs the pull secret (currently copied by infra/start.sh) delivered via
-      Ansible Vault or an operator-provided var.
+  ansible.builtin.include_tasks: crc.yml
