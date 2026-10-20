@@ -92,6 +92,9 @@
   become_user: "{{ trainer_user }}"
   environment: "{{ training_crc_env }}"
   ansible.builtin.command: "{{ training_crc_bin }} setup"
+  # Downloads and unpacks the ~5 GB bundle: do not hold the SSH session on it.
+  async: 3600
+  poll: 30
   changed_when: false
 
 - name: Enable and start libvirtd
@@ -118,7 +121,9 @@
   async: 3600
   poll: 30
   changed_when: true
-  when: (training_crc_status.stdout | default('{}') | from_json).openshiftStatus | default('') != 'Running'
+  # A regex rather than from_json: before the first start, crc status may print
+  # nothing parseable at all.
+  when: training_crc_status.stdout is not search('"openshiftStatus":\\s*"Running"')
 
 - name: Install oc system-wide (shipped with the crc bundle)
   ansible.builtin.copy:
@@ -134,3 +139,11 @@
     remote_src: true
     mode: "0755"
     creates: /usr/local/bin/oc-mirror
+
+# oc-mirror is linked against libgpgme.so.11, Fedora ships libgpgme.so.45: same
+# API, so point the old soname at it (bootstrap/fedora/openshift-tools.sh did).
+- name: Provide the libgpgme soname oc-mirror is linked against
+  ansible.builtin.file:
+    src: "{{ crc_libgpgme }}"
+    dest: /usr/lib64/libgpgme.so.11
+    state: link

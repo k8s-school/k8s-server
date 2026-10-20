@@ -17,10 +17,14 @@ training_action: "crc"
 # Versions were in bootstrap/env.sh.
 crc_version: "2.61.0"
 ocp_version: "4.21.19"
+# Fedora 44 library that oc-mirror gets as libgpgme.so.11.
+crc_libgpgme: /usr/lib64/libgpgme.so.45
 # Gitignored, personal to a Red Hat account: dropped at the repo root by the operator.
 crc_pull_secret_src: "{{ playbook_dir }}/../../pull-secret.txt"
 crc_config:
   preset: openshift
+  # Unset, crc setup asks the question on a terminal.
+  consent-telemetry: "no"
   cpus: 7
   memory: 24576
   # Monitoring needs at least 14 GiB of memory on its own.
