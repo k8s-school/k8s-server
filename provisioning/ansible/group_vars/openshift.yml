@@ -12,3 +12,18 @@ selinux_relabel: true
 per_user_cluster: false
 
 training_action: "crc"
+
+# crc (OpenShift Local), run by the trainer account — see roles/training/tasks/crc.yml.
+# Versions were in bootstrap/env.sh.
+crc_version: "2.61.0"
+ocp_version: "4.21.19"
+# Gitignored, personal to a Red Hat account: dropped at the repo root by the operator.
+crc_pull_secret_src: "{{ playbook_dir }}/../../pull-secret.txt"
+crc_config:
+  preset: openshift
+  cpus: 7
+  memory: 24576
+  # Monitoring needs at least 14 GiB of memory on its own.
+  enable-cluster-monitoring: "false"
+  disk-size: 50
+  pull-secret-file: "/home/{{ trainer_user }}/pull-secret.txt"

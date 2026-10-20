@@ -1,0 +1,136 @@
+---
+# OpenShift Local (crc) for the openshift flavor, run by the trainer account.
+# Port of bootstrap/fedora/crc-setup.sh + crc-start.sh + openshift-tools.sh.
+# One crc VM per server: it alone takes crc_cpus / crc_memory_mb.
+
+- name: Look up the trainer uid (for its systemd user runtime dir)
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ trainer_user }}"
+
+- name: Set the crc paths and environment
+  ansible.builtin.set_fact:
+    training_crc_home: "/home/{{ trainer_user }}"
+    training_crc_bin: "/home/{{ trainer_user }}/bin/crc"
+    # crc setup drives systemd *user* units: without these two variables it dies
+    # with "Failed to connect to user scope bus" over a non-login shell.
+    training_crc_env:
+      PATH: "/home/{{ trainer_user }}/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+      XDG_RUNTIME_DIR: "/run/user/{{ getent_passwd[trainer_user][1] }}"
+      DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ getent_passwd[trainer_user][1] }}/bus"
+
+# The pull secret is personal to a Red Hat account, hence gitignored: the
+# operator drops it at the repo root, as infra/start.sh expected.
+- name: Check the crc pull secret is present on the operator machine
+  delegate_to: localhost
+  become: false
+  ansible.builtin.stat:
+    path: "{{ crc_pull_secret_src }}"
+  register: training_crc_pull_secret
+
+- name: Fail early without a pull secret (crc start would prompt for it)
+  ansible.builtin.fail:
+    msg: >-
+      {{ crc_pull_secret_src }} not found. Download it from
+      https://console.redhat.com/openshift/create/local and save it there.
+  when: not training_crc_pull_secret.stat.exists
+
+- name: Copy the crc pull secret into the trainer home
+  ansible.builtin.copy:
+    src: "{{ crc_pull_secret_src }}"
+    dest: "{{ training_crc_home }}/pull-secret.txt"
+    owner: "{{ trainer_user }}"
+    group: "{{ trainer_user }}"
+    mode: "0600"
+
+- name: Create the trainer bin dir
+  ansible.builtin.file:
+    path: "{{ training_crc_home }}/bin"
+    state: directory
+    owner: "{{ trainer_user }}"
+    group: "{{ trainer_user }}"
+    mode: "0755"
+
+- name: Download and unpack crc {{ crc_version }}
+  become: true
+  become_user: "{{ trainer_user }}"
+  ansible.builtin.unarchive:
+    src: "https://mirror.openshift.com/pub/openshift-v4/clients/crc/{{ crc_version }}/crc-linux-amd64.tar.xz"
+    dest: "{{ training_crc_home }}"
+    remote_src: true
+    creates: "{{ training_crc_home }}/crc-linux-{{ crc_version }}-amd64/crc"
+
+- name: Link crc into the trainer PATH
+  ansible.builtin.file:
+    src: "{{ training_crc_home }}/crc-linux-{{ crc_version }}-amd64/crc"
+    dest: "{{ training_crc_bin }}"
+    state: link
+    owner: "{{ trainer_user }}"
+    group: "{{ trainer_user }}"
+
+# Starts the trainer's systemd user instance now and at every boot.
+- name: Enable linger for the trainer
+  ansible.builtin.command: loginctl enable-linger {{ trainer_user }}
+  args:
+    creates: "/var/lib/systemd/linger/{{ trainer_user }}"
+
+- name: Wait for the trainer user bus
+  ansible.builtin.wait_for:
+    path: "{{ training_crc_env.XDG_RUNTIME_DIR }}/bus"
+    timeout: 60
+
+- name: Configure crc
+  become: true
+  become_user: "{{ trainer_user }}"
+  environment: "{{ training_crc_env }}"
+  ansible.builtin.command: "{{ training_crc_bin }} config set {{ item.key }} {{ item.value }}"
+  loop: "{{ crc_config | dict2items }}"
+  changed_when: false
+
+- name: Run crc setup (installs libvirt, downloads the bundle)
+  become: true
+  become_user: "{{ trainer_user }}"
+  environment: "{{ training_crc_env }}"
+  ansible.builtin.command: "{{ training_crc_bin }} setup"
+  changed_when: false
+
+- name: Enable and start libvirtd
+  ansible.builtin.systemd:
+    name: libvirtd.service
+    enabled: true
+    state: started
+
+- name: Read the crc status
+  become: true
+  become_user: "{{ trainer_user }}"
+  environment: "{{ training_crc_env }}"
+  ansible.builtin.command: "{{ training_crc_bin }} status -o json"
+  register: training_crc_status
+  changed_when: false
+  failed_when: false
+
+# The first start takes 10-20 min: run it async so the SSH session is not held.
+- name: Start crc
+  become: true
+  become_user: "{{ trainer_user }}"
+  environment: "{{ training_crc_env }}"
+  ansible.builtin.command: "{{ training_crc_bin }} start"
+  async: 3600
+  poll: 30
+  changed_when: true
+  when: (training_crc_status.stdout | default('{}') | from_json).openshiftStatus | default('') != 'Running'
+
+- name: Install oc system-wide (shipped with the crc bundle)
+  ansible.builtin.copy:
+    src: "{{ training_crc_home }}/.crc/bin/oc/oc"
+    dest: /usr/local/bin/oc
+    remote_src: true
+    mode: "0755"
+
+- name: Download and unpack oc-mirror {{ ocp_version }}
+  ansible.builtin.unarchive:
+    src: "https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/{{ ocp_version }}/oc-mirror.tar.gz"
+    dest: /usr/local/bin
+    remote_src: true
+    mode: "0755"
+    creates: /usr/local/bin/oc-mirror

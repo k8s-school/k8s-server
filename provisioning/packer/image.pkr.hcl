@@ -15,7 +15,7 @@ packer {
 #   SCW_ACCESS_KEY, SCW_SECRET_KEY, SCW_DEFAULT_PROJECT_ID
 source "scaleway" "training" {
   zone            = var.zone
-  image           = var.source_image
+  image           = local.source_image
   commercial_type = var.commercial_type
   ssh_username    = "root"
   # Timestamped so old images are easy to identify and prune.
