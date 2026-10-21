@@ -15,7 +15,7 @@ on:
       flavor:
         description: Training flavor to bake
         type: choice
-        options: [otel, k8s, openshift]
+        options: [otel, k8s, cks, openshift]
         default: otel
 
 permissions:

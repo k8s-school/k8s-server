@@ -41,11 +41,6 @@ WAVE ?= 4
 
 INVENTORY := $(ANSIBLE_DIR)/inventory/$(FLAVOR).ini
 
-# Flavor whose baked image this one boots. The image is the same for every
-# Ubuntu flavor (ansible/image.yml never reads 'flavor'); cks shares the k8s
-# one rather than baking an identical copy under its own tag.
-IMAGE_FLAVOR := $(if $(filter cks,$(FLAVOR)),k8s,$(FLAVOR))
-
 # Pull a quoted value out of the flavor's tfvars, e.g. $(call tfvar,dns_zone).
 # The DNS state is applied separately (see the `dns` target), so it gets its
 # inputs this way instead of reading the file itself — its variables are not the
@@ -54,7 +49,7 @@ tfvar = $$(grep -E '^[[:space:]]*$(1)[[:space:]]*=' $(TOFU_DIR)/$(TFVARS) | sed 
 
 # Shell pipeline printing the Scaleway image IDs tagged for the current FLAVOR
 # (one per line). This is how the image is found by tag instead of a pinned id.
-IMAGE_IDS = scw instance image list zone=$(ZONE) -o json | jq -r --arg t "flavor=$(IMAGE_FLAVOR)" '.[] | select((.tags // []) | index($$t)) | .id'
+IMAGE_IDS = scw instance image list zone=$(ZONE) -o json | jq -r --arg t "flavor=$(FLAVOR)" '.[] | select((.tags // []) | index($$t)) | .id'
 
 .DEFAULT_GOAL := help
 .PHONY: help init check-tfvars create-image up dns down configure provision precreate ssh ip fqdn fmt validate delete-image delete-ip delete-dns status \
@@ -88,38 +83,38 @@ check-tfvars: ## Fail early when FLAVOR/SIZE name no tfvars file
 	  exit 1; }
 
 create-image: ## Build the golden Scaleway image with Packer (locally)
-	cd packer && packer init . && packer build -var flavor=$(IMAGE_FLAVOR) .
+	cd packer && packer init . && packer build -var flavor=$(FLAVOR) .
 	@# Packer prints "An image was created" twice (harmless manifest quirk). The
-	@# image is found by its 'flavor=$(IMAGE_FLAVOR)' tag, so nothing to copy anywhere.
+	@# image is found by its 'flavor=$(FLAVOR)' tag, so nothing to copy anywhere.
 	@ids=$$($(IMAGE_IDS)); n=$$(printf '%s\n' "$$ids" | grep -c .); \
 	echo ""; \
 	if [ "$$n" -gt 1 ]; then \
-	  echo "WARNING: $$n images now carry the tag 'flavor=$(IMAGE_FLAVOR)':"; \
+	  echo "WARNING: $$n images now carry the tag 'flavor=$(FLAVOR)':"; \
 	  printf '  %s\n' $$ids; \
 	  echo "'make up FLAVOR=$(FLAVOR)' will REFUSE to run until exactly one remains."; \
-	  echo "Prune the stale one(s): make delete-image FLAVOR=$(IMAGE_FLAVOR)  (deletes ALL of them)"; \
+	  echo "Prune the stale one(s): make delete-image FLAVOR=$(FLAVOR)  (deletes ALL of them)"; \
 	  echo "                    or: scw instance image delete <id> with-snapshots=true"; \
 	else \
-	  echo "Image built and tagged 'flavor=$(IMAGE_FLAVOR)' (id: $$ids)."; \
+	  echo "Image built and tagged 'flavor=$(FLAVOR)' (id: $$ids)."; \
 	  echo "Nothing to copy: 'make up FLAVOR=$(FLAVOR)' resolves it by tag automatically."; \
 	fi
 
 up: check-tfvars ## Create/update the VM + reserved IP, and write the Ansible inventory
 	@ids=$$($(IMAGE_IDS)); n=$$(printf '%s\n' "$$ids" | grep -c .); \
 	if [ "$$n" -gt 1 ]; then \
-	  echo "ERROR: $$n images are tagged 'flavor=$(IMAGE_FLAVOR)' — cannot pick one:"; \
+	  echo "ERROR: $$n images are tagged 'flavor=$(FLAVOR)' — cannot pick one:"; \
 	  printf '  %s\n' $$ids; \
 	  echo "Keep a single image for this flavor, then retry. Prune with:"; \
-	  echo "  make delete-image FLAVOR=$(IMAGE_FLAVOR)   (deletes ALL, then rebuild one)"; \
+	  echo "  make delete-image FLAVOR=$(FLAVOR)   (deletes ALL, then rebuild one)"; \
 	  echo "  scw instance image delete <id> with-snapshots=true   (targeted)"; \
 	  exit 1; \
 	elif [ "$$n" -eq 1 ]; then \
-	  echo "Using baked image $$ids (tag flavor=$(IMAGE_FLAVOR))."; \
+	  echo "Using baked image $$ids (tag flavor=$(FLAVOR))."; \
 	  cd $(TOFU_DIR) && tofu apply -var-file=$(TFVARS) -var image_id="$$ids" -auto-approve; \
 	else \
-	  echo "ERROR: no image tagged 'flavor=$(IMAGE_FLAVOR)' — nothing to boot."; \
+	  echo "ERROR: no image tagged 'flavor=$(FLAVOR)' — nothing to boot."; \
 	  echo "There is no fallback distro. Build the golden image first:"; \
-	  echo "  make create-image FLAVOR=$(IMAGE_FLAVOR)"; \
+	  echo "  make create-image FLAVOR=$(FLAVOR)"; \
 	  exit 1; \
 	fi
 
@@ -233,7 +228,7 @@ down: check-tfvars ## Destroy the VM only (keeps the reserved IP for the next se
 
 delete-image: ## Delete every Scaleway image (+ snapshot) tagged flavor=<FLAVOR>
 	@ids=$$($(IMAGE_IDS)); \
-	if [ -z "$$ids" ]; then echo "No image tagged 'flavor=$(IMAGE_FLAVOR)', nothing to delete"; exit 0; fi; \
+	if [ -z "$$ids" ]; then echo "No image tagged 'flavor=$(FLAVOR)', nothing to delete"; exit 0; fi; \
 	for img in $$ids; do \
 	  echo "Deleting Scaleway image $$img (with snapshot)"; \
 	  scw instance image delete "$$img" with-snapshots=true; \

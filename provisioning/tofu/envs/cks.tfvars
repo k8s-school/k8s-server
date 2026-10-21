@@ -8,9 +8,6 @@ instance_name = "cks"
 # Run util/sizing-report.sh during the first session and adjust.
 instance_type = "GP1-M"
 
-# No image_id: the cks flavor boots the k8s image (same tooling), resolved by
-# its 'flavor=k8s' tag — see IMAGE_FLAVOR in the Makefile.
-
 # Every kind node keeps its own copy of the preloaded images (falco, kube-bench...):
 # 28 nodes instead of 4 is what makes the disk the first resource to watch.
 root_volume_size_gb = 200

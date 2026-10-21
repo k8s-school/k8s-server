@@ -12,7 +12,7 @@ Splits the work along its natural seam:
 The four flavors (`k8s`, `cks`, `openshift`, `otel`) are selected with a single
 variable, mirroring `infra/conf.sh`. `cks` is the k8s-advanced (CKS) training
 with one kind cluster per account: its day-2 labs edit the participant's own
-control plane, so a shared cluster cannot host them. It boots the k8s image.
+control plane, so a shared cluster cannot host them.
 
 ## Usage
 

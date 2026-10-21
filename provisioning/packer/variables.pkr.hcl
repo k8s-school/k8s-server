@@ -1,7 +1,7 @@
 variable "flavor" {
   type        = string
   default     = "otel"
-  description = "Training flavor to bake (k8s | openshift | otel)."
+  description = "Training flavor to bake (k8s | cks | openshift | otel)."
 }
 
 variable "zone" {
