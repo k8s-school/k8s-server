@@ -9,8 +9,10 @@ Splits the work along its natural seam:
 | Infra      | OpenTofu | every session         | Boots one VM from the baked image, reuses the tagged IP |
 | Config     | Ansible  | every session         | Participant accounts, repo clones, per-user cluster env |
 
-The three flavors (`k8s`, `openshift`, `otel`) are selected with a single
-variable, mirroring `infra/conf.sh`.
+The four flavors (`k8s`, `cks`, `openshift`, `otel`) are selected with a single
+variable, mirroring `infra/conf.sh`. `cks` is the k8s-advanced (CKS) training
+with one kind cluster per account: its day-2 labs edit the participant's own
+control plane, so a shared cluster cannot host them. It boots the k8s image.
 
 ## Usage
 
@@ -21,7 +23,7 @@ self-documenting list of targets:
 make                    # or: make help
 ```
 
-Pick the flavor with `FLAVOR=` (`k8s` | `openshift` | `otel`, default `otel`).
+Pick the flavor with `FLAVOR=` (`k8s` | `cks` | `openshift` | `otel`, default `otel`).
 Scaleway credentials come from the environment, like the `scw` CLI:
 
 ```bash

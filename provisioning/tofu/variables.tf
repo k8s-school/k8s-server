@@ -1,5 +1,5 @@
 variable "flavor" {
-  description = "Training flavor (k8s | openshift | otel). Selects naming and defaults."
+  description = "Training flavor (k8s | cks | openshift | otel). Selects naming and defaults."
   type        = string
 }
 
