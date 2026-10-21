@@ -52,7 +52,7 @@ tfvar = $$(grep -E '^[[:space:]]*$(1)[[:space:]]*=' $(TOFU_DIR)/$(TFVARS) | sed 
 IMAGE_IDS = scw instance image list zone=$(ZONE) -o json | jq -r --arg t "flavor=$(FLAVOR)" '.[] | select((.tags // []) | index($$t)) | .id'
 
 .DEFAULT_GOAL := help
-.PHONY: help init check-tfvars create-image up dns down configure provision precreate ssh ip fqdn fmt validate delete-image delete-ip delete-dns status \
+.PHONY: help init check-tfvars create-image up dns down configure provision precreate ssh ip ip-reserve fqdn fmt validate delete-image delete-ip delete-dns status \
         cluster cluster-dispatch cluster-list cluster-ssh cluster-down
 
 help: ## Show this help (default target)
@@ -217,6 +217,24 @@ cluster-down: ## Destroy every lab cluster (VMs AND their IPs)
 	@echo "  scw instance server list tags.0=kubeadm-lab"
 	@echo "  scw instance ip list tags.0=kubeadm-lab"
 
+
+ip-reserve: check-tfvars ## Reserve the flavor's public IP only, no VM (to send it to the client ahead of the session)
+	@# Same state and resource as `make up`, so the VM booted later lands on this
+	@# IP. A plain `scw instance ip create` would live outside the state and
+	@# `make up` would reserve a second one. image_id is a required var but
+	@# irrelevant here — pass a placeholder, as `down` does.
+	@# The state is shared by all flavors: refuse while a server exists, else the
+	@# apply would retag the IP of the session in progress instead of adding one.
+	@if [ -f $(TOFU_DIR)/terraform.tfstate ] && \
+	   jq -e '.resources[] | select(.type == "scaleway_instance_server")' $(TOFU_DIR)/terraform.tfstate >/dev/null; then \
+	  echo "ERROR: a server exists in the OpenTofu state — a session is in progress."; \
+	  echo "Run 'make down' first (it keeps the IP), or 'make up FLAVOR=$(FLAVOR)' to boot it."; \
+	  exit 1; \
+	fi
+	cd $(TOFU_DIR) && tofu apply -target=scaleway_instance_ip.main -var-file=$(TFVARS) -var image_id=unused-ip-only -auto-approve
+	@echo ""
+	@echo "Reserved IP for $(FLAVOR): $$(cd $(TOFU_DIR) && tofu output -raw public_ip)"
+	@echo "'make provision FLAVOR=$(FLAVOR)' will boot the VM on it."
 
 down: check-tfvars ## Destroy the VM only (keeps the reserved IP for the next session)
 	@# A blanket `tofu destroy` would try to delete the IP too, which has
