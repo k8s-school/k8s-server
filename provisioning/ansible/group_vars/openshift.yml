@@ -9,7 +9,13 @@ trainer_repo: "openshift-advanced"
 extra_groups: ["docker"]
 selinux_relabel: true
 
+nb_users: 2
+
 per_user_cluster: false
+
+# Browser access for the participants: a remote desktop gives them a browser
+# on the server, the only place the crc console is reachable from.
+guacamole_enabled: true
 
 training_action: "crc"
 
