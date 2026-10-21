@@ -86,9 +86,11 @@ Typical lifecycle:
 1. **Once** (or when the tooling changes): `make create-image` bakes the golden
    image and prints its ID → set it as `image_id` in `tofu/envs/<flavor>.tfvars`
    (the GHA workflow can do this via an auto-PR).
-2. **Each session**: `make provision` (boots the VM + configures accounts), then
+2. **Before the session**, if the client needs the IP in advance (firewall
+   whitelisting): `make ip-reserve` reserves it without booting the VM.
+3. **Each session**: `make provision` (boots the VM + configures accounts), then
    `make ssh`.
-3. **Teardown**: `make down`, then `make delete-image` / `make delete-ip` to stop
+4. **Teardown**: `make down`, then `make delete-image` / `make delete-ip` to stop
    paying for anything between sessions. `make status` lists what is still
    alive on the account — instances, reserved IPs, images, and the volumes and
    snapshots a deleted server leaves behind, which keep billing on their own.
