@@ -112,6 +112,44 @@
   changed_when: false
   failed_when: false
 
+# Docker (29) sets the FORWARD policy to DROP and only lets its own bridges
+# through: the crc VM's traffic on the libvirt bridge is dropped before the
+# libvirt NAT, the cluster reaches nothing outside and every image pull times
+# out (ImagePullBackOff). Let that one bridge through in DOCKER-USER, the chain
+# Docker leaves to the admin, and keep the DROP policy for everything else.
+# A unit rather than one-off rules: iptables rules do not survive a reboot, and
+# WantedBy=docker.service re-applies them whenever Docker (re)starts.
+- name: Install the unit letting the crc bridge through Docker's FORWARD DROP
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/crc-forward.service
+    mode: "0644"
+    content: |
+      # Managed by Ansible (training role, crc.yml).
+      [Unit]
+      Description=Let the crc libvirt bridge through Docker's FORWARD DROP
+      After=docker.service
+      PartOf=docker.service
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      # -C first: idempotent when Docker kept the rules across a restart.
+      ExecStart=/bin/sh -c 'iptables -C DOCKER-USER -i crc -j ACCEPT 2>/dev/null || iptables -I DOCKER-USER -i crc -j ACCEPT'
+      ExecStart=/bin/sh -c 'iptables -C DOCKER-USER -o crc -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT 2>/dev/null || iptables -I DOCKER-USER -o crc -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT'
+      ExecStop=-iptables -D DOCKER-USER -i crc -j ACCEPT
+      ExecStop=-iptables -D DOCKER-USER -o crc -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+
+      [Install]
+      WantedBy=docker.service
+  register: training_crc_forward_unit
+
+- name: Enable and start the crc forwarding unit
+  ansible.builtin.systemd:
+    name: crc-forward.service
+    enabled: true
+    state: "{{ 'restarted' if training_crc_forward_unit is changed else 'started' }}"
+    daemon_reload: "{{ training_crc_forward_unit is changed }}"
+
 # The first start takes 10-20 min: run it async so the SSH session is not held.
 - name: Start crc
   become: true
