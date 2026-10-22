@@ -10,7 +10,7 @@ user_prefix: "student"
 user_start: 1
 
 # Number of participant accounts (mirrors NB_USER in bootstrap/env.sh).
-nb_users: 30
+nb_users: 20
 
 # Password suffix; per-user password is "<index><participant_password>", matching
 # the chpasswd logic in bootstrap/adduser.sh. Value is vaulted (see vault.yml).
