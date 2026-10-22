@@ -1,6 +1,13 @@
 ---
+# Only the dirs the sefcontext rule covers. A blanket 'restorecon -R /home'
+# walks into the FUSE mount xrdp puts in the home of every connected desktop
+# (~/thinclient_drives), which not even root may stat: it fails the whole run.
+# -i: an account that has no ~/.kube yet is skipped, not an error.
 - name: Restorecon homes
-  ansible.builtin.command: restorecon -R /home
+  ansible.builtin.command: "restorecon -R -i /home/{{ item.name }}/.kube"
+  loop: "{{ participants_all }}"
+  loop_control:
+    label: "{{ item.name }}"
   changed_when: false
 
 - name: Restart sshd
