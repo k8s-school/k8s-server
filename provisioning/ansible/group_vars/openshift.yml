@@ -23,6 +23,12 @@ crc_libgpgme: /usr/lib64/libgpgme.so.45
 crc_pull_secret_src: "{{ playbook_dir }}/../../pull-secret.txt"
 crc_config:
   preset: openshift
+  # 'user' (the default) runs the VM behind gvproxy and makes crc itself listen
+  # on the server's 80 and 443, on every interface: it collides with Guacamole
+  # and publishes the console. 'system' puts the VM on a libvirt bridge and lets
+  # NetworkManager's dnsmasq resolve *.apps-crc.testing to it, binding nothing.
+  # Changing it on an existing VM takes 'crc delete' + 'crc cleanup' first.
+  network-mode: system
   # Unset, crc setup asks the question on a terminal.
   consent-telemetry: "no"
   cpus: 7
@@ -31,3 +37,39 @@ crc_config:
   enable-cluster-monitoring: "false"
   disk-size: 50
   pull-secret-file: "/home/{{ trainer_user }}/pull-secret.txt"
+
+# Deploy the optional Guacamole gateway on this flavor. No dns_zone in
+# tofu/envs/openshift.tfvars, so it is served over plain HTTP on port 80.
+# crc is not exposed outside the server: the console and the API are used from
+# it (*.apps-crc.testing and api.crc.testing only resolve there), through the
+# Firefox of each participant's XFCE desktop (rdp mode, the default).
+guacamole_enabled: true
+
+# Written by roles/training/tasks/crc.yml from the cluster's router-ca secret.
+crc_ingress_ca_path: /etc/pki/ca-trust/source/anchors/crc-ingress-ca.crt
+guacamole_firefox_certificates:
+  - "{{ crc_ingress_ca_path }}"
+# Replaces the shared list (roles/guacamole/defaults): its OpenTelemetry folder
+# has nothing to do here.
+guacamole_firefox_bookmarks:
+  - Title: "K8s School"
+    URL: "https://k8s-school.fr"
+    Placement: "toolbar"
+
+  - Title: "Labs Kubernetes"
+    URL: "https://k8s-school.fr/labs/k8s"
+    Folder: "Kubernetes"
+    Placement: "toolbar"
+  - Title: "Documentation Kubernetes"
+    URL: "https://kubernetes.io/docs/home/"
+    Folder: "Kubernetes"
+    Placement: "toolbar"
+
+  - Title: "Console OpenShift"
+    URL: "https://console-openshift-console.apps-crc.testing"
+    Folder: "OpenShift"
+    Placement: "toolbar"
+  - Title: "Documentation OpenShift"
+    URL: "https://docs.redhat.com/en/documentation/openshift_container_platform/"
+    Folder: "OpenShift"
+    Placement: "toolbar"

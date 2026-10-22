@@ -132,6 +132,33 @@
     remote_src: true
     mode: "0755"
 
+# The console, the OAuth server and every route are served with a certificate
+# signed by the ingress operator's self-signed CA: trusted by nothing, hence a
+# warning on each first visit. Add it to the system trust (curl, oc) and leave
+# it where the guacamole role points Firefox (guacamole_firefox_certificates).
+- name: Read the crc ingress CA
+  ansible.builtin.command: >-
+    /usr/local/bin/oc --kubeconfig {{ training_crc_home }}/.crc/machines/crc/kubeconfig
+    -n openshift-ingress-operator get secret router-ca
+    -o 'jsonpath={.data.tls\.crt}'
+  register: training_crc_ingress_ca
+  changed_when: false
+  # Unquoted, the argument splitting eats the backslash: oc then gets
+  # {.data.tls.crt}, matches nothing and prints an empty, successful result.
+  failed_when: training_crc_ingress_ca.rc != 0 or training_crc_ingress_ca.stdout | length == 0
+
+- name: Trust the crc ingress CA system-wide
+  ansible.builtin.copy:
+    dest: "{{ crc_ingress_ca_path }}"
+    mode: "0644"
+    content: "{{ training_crc_ingress_ca.stdout | b64decode }}"
+  register: training_crc_ca_file
+
+- name: Rebuild the system trust store
+  ansible.builtin.command: update-ca-trust
+  when: training_crc_ca_file is changed
+  changed_when: true
+
 - name: Download and unpack oc-mirror {{ ocp_version }}
   ansible.builtin.unarchive:
     src: "https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/{{ ocp_version }}/oc-mirror.tar.gz"
