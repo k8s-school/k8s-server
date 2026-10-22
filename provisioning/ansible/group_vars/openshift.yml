@@ -47,6 +47,8 @@ guacamole_enabled: true
 
 # Written by roles/training/tasks/crc.yml from the cluster's router-ca secret.
 crc_ingress_ca_path: /etc/pki/ca-trust/source/anchors/crc-ingress-ca.crt
+# Same, for the API signers (from crc's admin kubeconfig), so 'oc login' works.
+crc_api_ca_path: /etc/pki/ca-trust/source/anchors/crc-api-ca.crt
 guacamole_firefox_certificates:
   - "{{ crc_ingress_ca_path }}"
 # Replaces the shared list (roles/guacamole/defaults): its OpenTelemetry folder

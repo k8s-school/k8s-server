@@ -197,6 +197,30 @@
   when: training_crc_ca_file is changed
   changed_when: true
 
+# The API (api.crc.testing:6443) has its own self-signed signers, embedded in
+# crc's admin kubeconfig. A participant's 'oc login' does not get them: it would
+# ask to accept an unknown certificate, and without a terminal it cannot even
+# ask. Trusted system-wide, oc (Go) then accepts the API like any other site.
+- name: Read the crc API CA bundle
+  ansible.builtin.command: >-
+    /usr/local/bin/oc --kubeconfig {{ training_crc_home }}/.crc/machines/crc/kubeconfig
+    config view --raw -o 'jsonpath={.clusters[0].cluster.certificate-authority-data}'
+  register: training_crc_api_ca
+  changed_when: false
+  failed_when: training_crc_api_ca.rc != 0 or training_crc_api_ca.stdout | length == 0
+
+- name: Trust the crc API CA system-wide
+  ansible.builtin.copy:
+    dest: "{{ crc_api_ca_path }}"
+    mode: "0644"
+    content: "{{ training_crc_api_ca.stdout | b64decode }}"
+  register: training_crc_api_ca_file
+
+- name: Rebuild the system trust store for the API CA
+  ansible.builtin.command: update-ca-trust
+  when: training_crc_api_ca_file is changed
+  changed_when: true
+
 - name: Download and unpack oc-mirror {{ ocp_version }}
   ansible.builtin.unarchive:
     src: "https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/{{ ocp_version }}/oc-mirror.tar.gz"
