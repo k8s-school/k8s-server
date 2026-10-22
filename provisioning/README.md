@@ -86,7 +86,7 @@ refuses. `make down` reads the state, not the tfvars, so it works whatever
 ### Object name (`NAME=`) and Scaleway account (`SCW_PROFILE`)
 
 `NAME=` (default: the flavor) names everything created on Scaleway — server,
-reserved IP tag, image name and its `name=<NAME>` tag — plus the inventory
+reserved IP tag, image name (`<NAME>-<timestamp>`) and its `name=<NAME>` tag — plus the inventory
 file. `FLAVOR` still decides what is installed, so a flavor can run under a name
 that does not reveal it:
 
