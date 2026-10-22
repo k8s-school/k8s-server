@@ -19,10 +19,11 @@ source "scaleway" "training" {
   commercial_type = var.commercial_type
   ssh_username    = "root"
   # Timestamped so old images are easy to identify and prune.
-  image_name = "k8s-training-${var.flavor}-{{timestamp}}"
-  # Stable label used by `make up` to find THIS flavor's image (no more copying
-  # image_id around). The timestamped name still lets you eyeball/prune old ones.
-  tags = ["k8s-training", "flavor=${var.flavor}"]
+  image_name = "k8s-training-${local.name}-{{timestamp}}"
+  # Stable label used by `make up` to find THIS image (no more copying image_id
+  # around). The timestamped name still lets you eyeball/prune old ones. It
+  # carries the name, not the flavor, which may not show on Scaleway.
+  tags = ["k8s-training", "name=${local.name}"]
   # Delete the build server's volumes once the snapshot is taken. Off by default,
   # and the volume outlives the temporary server: every build used to leave a
   # 10 GB volume named after the source image behind, billed for ever (18 had
@@ -56,6 +57,6 @@ build {
 
   # Emit the built image ID for the tofu tfvars.
   post-processor "manifest" {
-    output = "manifest-${var.flavor}.json"
+    output = "manifest-${local.name}.json"
   }
 }

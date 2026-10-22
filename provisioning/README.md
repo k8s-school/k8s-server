@@ -83,6 +83,28 @@ change the commercial type *and* resize the root volume in place, which it
 refuses. `make down` reads the state, not the tfvars, so it works whatever
 `SIZE` you pass it — or none at all.
 
+### Object name (`NAME=`) and Scaleway account (`SCW_PROFILE`)
+
+`NAME=` (default: the flavor) names everything created on Scaleway — server,
+reserved IP tag, image name and its `name=<NAME>` tag — plus the inventory
+file. `FLAVOR` still decides what is installed, so a flavor can run under a name
+that does not reveal it:
+
+```bash
+SCW_PROFILE=csan make create-image FLAVOR=openshift NAME=fink-dev
+SCW_PROFILE=csan make provision    FLAVOR=openshift NAME=fink-dev
+```
+
+The OpenTofu state of the VM and of the lab clusters is kept **per scw profile**:
+the workspace is named after `SCW_PROFILE` (else the config's `active_profile`),
+and the profile `default` uses the `default` workspace. Each Scaleway account
+thus has its own state, and switching profile never points tofu at another
+account's resources. `make help` shows the workspace in use. Within one
+profile, there is still one state, hence one server at a time.
+
+Images baked before `NAME` existed carry `flavor=<flavor>` instead; `make up`
+still finds them.
+
 Typical lifecycle:
 
 1. **Once** (or when the tooling changes): `make create-image` bakes the golden

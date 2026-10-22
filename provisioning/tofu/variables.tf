@@ -14,7 +14,7 @@ variable "region" {
 }
 
 variable "instance_name" {
-  description = "Instance + IP tag name. Mirrors INSTANCE_NAME in infra/env.<flavor>.sh."
+  description = "Instance + IP tag name, also the inventory file name. `make up` overrides it with NAME (default: the flavor)."
   type        = string
 }
 
