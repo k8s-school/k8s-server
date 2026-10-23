@@ -50,6 +50,11 @@ crc_ingress_ca_path: /etc/pki/ca-trust/source/anchors/crc-ingress-ca.crt
 # Same, for the API signers (from crc's admin kubeconfig), so 'oc login' works.
 crc_api_ca_path: /etc/pki/ca-trust/source/anchors/crc-api-ca.crt
 
+# A kind cluster for the trainer next to crc (ktbx defaults: 1 control plane +
+# 3 workers), with Cilium as CNI. See roles/training/tasks/main.yml.
+trainer_kind_cluster: true
+trainer_kind_cni: cilium
+
 # Docker Hub cache for every kind cluster of the server (roles/registry_mirror),
 # preloaded with the Docker Hub images of the labs. The crc VM does not use it:
 # a single node pulling each image once stays far below the rate limit.

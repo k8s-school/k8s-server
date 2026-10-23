@@ -21,3 +21,28 @@
 - name: Crc setup and start (openshift flavor)
   when: training_action == "crc"
   ansible.builtin.include_tasks: crc.yml
+
+# An extra kind cluster for the trainer, next to whatever the flavor provides
+# (openshift: crc). Checked with 'kind get clusters' rather than the k8s
+# flavor's creates: ~/.kube/config, which crc has already written. ktbx adds
+# the kind-kind context to ~/.kube/config and makes it the current one.
+- name: Read the trainer's kind clusters
+  when: trainer_kind_cluster | default(false) | bool
+  become: true
+  become_user: "{{ trainer_user }}"
+  ansible.builtin.command: kind get clusters
+  register: training_kind_clusters
+  changed_when: false
+
+- name: Create the trainer's kind cluster
+  when:
+    - trainer_kind_cluster | default(false) | bool
+    - "'kind' not in training_kind_clusters.stdout_lines"
+  become: true
+  become_user: "{{ trainer_user }}"
+  ansible.builtin.command: >-
+    ktbx create{{ ' -c ' ~ trainer_kind_cni if trainer_kind_cni | default('') | length > 0 else '' }}
+  # Node images plus the CNI rollout: several minutes, keep the SSH session free.
+  async: 1800
+  poll: 30
+  changed_when: true
