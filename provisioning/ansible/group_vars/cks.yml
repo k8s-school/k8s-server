@@ -27,3 +27,8 @@ per_user_cluster: true
 training_action: "none"
 
 guacamole_enabled: true
+
+# Docker Hub cache for every account's kind cluster (roles/registry_mirror).
+# Nothing preloaded: util/precreate.sh already 'kind load's the images the labs
+# name explicitly; the cache catches everything else, from the first pull on.
+registry_mirror_enabled: true
