@@ -1,0 +1,101 @@
+---
+# Docker Hub pull-through cache for the kind clusters, and the ktbx
+# configuration pointing every account's new clusters at it.
+# Only clusters created afterwards use it: kind reads the config at creation.
+
+# The cache must be on the kind network, the only one the nodes reach by
+# container name (Docker isolates its bridges from one another). kind reuses a
+# network called 'kind' if it already exists, so creating it first is harmless.
+- name: Create the kind docker network
+  ansible.builtin.shell: docker network inspect kind >/dev/null 2>&1 || { docker network create kind && echo created; }
+  register: registry_mirror_network
+  changed_when: "'created' in registry_mirror_network.stdout"
+
+- name: Read the running cache image
+  ansible.builtin.command: docker inspect -f '{{ "{{" }}.Config.Image{{ "}}" }}' {{ registry_mirror_name }}
+  register: registry_mirror_current
+  changed_when: false
+  failed_when: false
+
+# Recreated only when the image changes; the cached layers are in a named volume.
+- name: Remove the cache container running another image
+  ansible.builtin.command: docker rm -f {{ registry_mirror_name }}
+  when:
+    - registry_mirror_current.rc == 0
+    - registry_mirror_current.stdout != registry_mirror_image
+  changed_when: true
+
+- name: Start the Docker Hub cache
+  ansible.builtin.command: >-
+    docker run -d --name {{ registry_mirror_name }} --restart=always
+    --network kind -p 127.0.0.1:{{ registry_mirror_host_port }}:5000
+    -e REGISTRY_PROXY_REMOTEURL={{ registry_mirror_upstream }}
+    -v {{ registry_mirror_name }}:/var/lib/registry
+    {{ registry_mirror_image }}
+  when: registry_mirror_current.rc != 0 or registry_mirror_current.stdout != registry_mirror_image
+  changed_when: true
+
+- name: Create the containerd hosts directory for Docker Hub
+  ansible.builtin.file:
+    path: "{{ registry_mirror_config_dir }}/docker.io"
+    state: directory
+    mode: "0755"
+
+# containerd falls back to the upstream server when the cache is down, so a
+# dead cache slows pulls down rather than breaking them.
+- name: Point containerd's Docker Hub pulls at the cache
+  ansible.builtin.copy:
+    dest: "{{ registry_mirror_config_dir }}/docker.io/hosts.toml"
+    mode: "0644"
+    content: |
+      # Managed by Ansible (registry_mirror role).
+      server = "https://registry-1.docker.io"
+
+      [host."http://{{ registry_mirror_name }}:5000"]
+        capabilities = ["pull", "resolve"]
+
+# Recomputed here, as in the guacamole role, so the role does not depend on the
+# participants role having run.
+- name: Build the account list for the ktbx configuration
+  ansible.builtin.set_fact:
+    registry_mirror_accounts: >-
+      {{ [trainer_user]
+         + range(user_start | int, (nb_users | int) + 1) | map('string')
+           | map('regex_replace', '^', user_prefix) | list }}
+
+- name: Create each account's ktbx config dir
+  ansible.builtin.file:
+    path: "/home/{{ item }}/.ktbx"
+    state: directory
+    owner: "{{ item }}"
+    group: "{{ item }}"
+    mode: "0755"
+  loop: "{{ registry_mirror_accounts }}"
+
+- name: Write each account's ktbx configuration
+  ansible.builtin.copy:
+    dest: "/home/{{ item }}/.ktbx/config"
+    owner: "{{ item }}"
+    group: "{{ item }}"
+    mode: "0644"
+    content: |
+      # Managed by Ansible (registry_mirror role).
+      kind:
+        registryConfigDir: {{ registry_mirror_config_dir }}
+  loop: "{{ registry_mirror_accounts }}"
+
+# docker.io/library/nginx:alpine -> 127.0.0.1:<port>/library/nginx:alpine, then
+# dropped from the host: only the copy in the cache is wanted.
+- name: Preload the Docker Hub images into the cache
+  ansible.builtin.shell: |
+    set -o pipefail
+    for img in {{ registry_mirror_preload | select('match', '^(docker\.io/)?[^./:]+(/|:|$)') | join(' ') }}; do
+      path=${img#docker.io/}
+      case "$path" in */*) ;; *) path="library/$path" ;; esac
+      ref="127.0.0.1:{{ registry_mirror_host_port }}/$path"
+      docker pull -q "$ref" >/dev/null && docker rmi -f "$ref" >/dev/null || exit 1
+    done
+  args:
+    executable: /bin/bash
+  when: registry_mirror_preload | length > 0
+  changed_when: false
