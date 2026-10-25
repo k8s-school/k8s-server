@@ -105,6 +105,12 @@ guacamole_color_depth: "16"
 # not render at 32bpp only for guacd to downsample.
 guacamole_xrdp_max_bpp: "16"
 
+# Address xrdp listens on. guacd is its only legitimate client and reaches it
+# as host.docker.internal, i.e. the docker0 gateway: listening there alone keeps
+# 3389 — password-authenticated with the participants' Unix passwords — off the
+# public interface. Empty = every interface, as xrdp ships.
+guacamole_xrdp_listen_address: "{{ ansible_facts['docker0']['ipv4']['address'] | default('') }}"
+
 # Drop the RDP eye candy the server would otherwise have to paint and stream:
 # wallpaper, window themes, font smoothing, live window dragging, compositing
 # and menu animations. Set false to get the full-fat desktop back.
@@ -150,6 +156,32 @@ guacamole_browser_package: firefox
 # VS Code's terminal both pick it up with no further configuration.
 guacamole_desktop_fonts:
   - fonts-noto-color-emoji
+
+# Fedora counterparts of the three lists above (the openshift flavor runs on
+# Fedora). No 'xfce4' metapackage there, and the @xfce-desktop-environment group
+# drags in far more than a remote session needs: the components the role
+# configures, plus Thunar/exo, which back the panel's "Terminal" and file
+# launchers. Firefox is a plain rpm, no snap to dodge. DejaVu Sans Mono is what
+# the "Monospace" alias resolves to, installed by default on Ubuntu only.
+guacamole_desktop_packages_redhat:
+  - xfce4-session
+  - xfwm4
+  - xfce4-panel
+  - xfdesktop
+  - xfce4-settings
+  - xfce4-terminal
+  - xfconf
+  - Thunar
+  - exo
+  - xrdp
+  - xorgxrdp
+  - dbus-x11
+  - xdotool
+  - wmctrl
+  - firefox
+guacamole_desktop_fonts_redhat:
+  - google-noto-color-emoji-fonts
+  - dejavu-sans-mono-fonts
 
 # --- Terminal theme (rdp mode only) -------------------------------------------
 # System-wide xfce4-terminal defaults, written to
@@ -311,6 +343,12 @@ guacamole_firefox_bookmarks:
 # Keep the bookmarks toolbar visible, otherwise the entries above are hidden on
 # a fresh profile. Applied as a *default* so a participant can still hide it.
 guacamole_firefox_show_bookmarks_toolbar: true
+
+# CA certificates (absolute paths on the server) Firefox must trust, through the
+# Certificates.Install policy: for self-signed endpoints the participants open
+# from the desktop, such as the crc console. A path that does not exist yet is
+# fine, Firefox reads it at startup.
+guacamole_firefox_certificates: []
 
 # --- Live desktop sessions (rdp mode only) ------------------------------------
 # Configuring xrdp restarts it, and a restart does NOT close the desktops it is

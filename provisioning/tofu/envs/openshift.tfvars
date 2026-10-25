@@ -5,3 +5,8 @@ instance_type = "GP1-M"
 # injects it. Build one first: `make create-image FLAVOR=openshift`. No fallback
 # distro — without a baked image `make up` refuses to run.
 root_volume_size_gb = 100
+
+# Public name of the session server: Guacamole over HTTPS, which the clipboard
+# needs. Same record as otel and k8s, so only one of them runs at a time.
+dns_zone      = "k8s-school.fr"
+dns_subdomain = "training"

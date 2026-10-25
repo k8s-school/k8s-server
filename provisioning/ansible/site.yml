@@ -23,5 +23,12 @@
       when: guacamole_enabled | default(false) | bool
     - role: participants
       tags: [session]
+    # Optional Docker Hub cache for the kind clusters. Before training, which
+    # creates the trainer's cluster; after participants, whose homes get the
+    # ktbx configuration. Set registry_mirror_enabled: true in a flavor's
+    # group_vars.
+    - role: registry_mirror
+      tags: [registry_mirror, session]
+      when: registry_mirror_enabled | default(false) | bool
     - role: training
       tags: [session]

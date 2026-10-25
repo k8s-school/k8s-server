@@ -29,6 +29,12 @@ crc_libgpgme: /usr/lib64/libgpgme.so.45
 crc_pull_secret_src: "{{ playbook_dir }}/../../pull-secret.txt"
 crc_config:
   preset: openshift
+  # 'user' (the default) runs the VM behind gvproxy and makes crc itself listen
+  # on the server's 80 and 443, on every interface: it collides with Guacamole
+  # and publishes the console. 'system' puts the VM on a libvirt bridge and lets
+  # NetworkManager's dnsmasq resolve *.apps-crc.testing to it, binding nothing.
+  # Changing it on an existing VM takes 'crc delete' + 'crc cleanup' first.
+  network-mode: system
   # Unset, crc setup asks the question on a terminal.
   consent-telemetry: "no"
   cpus: 7
@@ -37,3 +43,72 @@ crc_config:
   enable-cluster-monitoring: "false"
   disk-size: 50
   pull-secret-file: "/home/{{ trainer_user }}/pull-secret.txt"
+
+# Deploy the optional Guacamole gateway on this flavor. HTTPS follows the
+# dns_zone set in tofu/envs/openshift.tfvars.
+# crc is not exposed outside the server: the console and the API are used from
+# it (*.apps-crc.testing and api.crc.testing only resolve there), through the
+# Firefox of each participant's XFCE desktop (rdp mode, the default).
+guacamole_enabled: true
+
+# Written by roles/training/tasks/crc.yml from the cluster's router-ca secret.
+crc_ingress_ca_path: /etc/pki/ca-trust/source/anchors/crc-ingress-ca.crt
+# Same, for the API signers (from crc's admin kubeconfig), so 'oc login' works.
+crc_api_ca_path: /etc/pki/ca-trust/source/anchors/crc-api-ca.crt
+
+# A kind cluster for the trainer next to crc (ktbx defaults: 1 control plane +
+# 3 workers), with Cilium as CNI. See roles/training/tasks/main.yml.
+trainer_kind_cluster: true
+trainer_kind_cni: cilium
+
+# Docker Hub cache for every kind cluster of the server (roles/registry_mirror),
+# preloaded with the Docker Hub images of the labs. The crc VM does not use it:
+# a single node pulling each image once stays far below the rate limit.
+registry_mirror_enabled: true
+registry_mirror_preload:
+  - docker.io/bitnami/postgresql:latest
+  - docker.io/envoyproxy/envoy:distroless-v1.38.1
+  - docker.io/envoyproxy/gateway:v1.8.1
+  - docker.io/grafana/grafana:11.5.1
+  # ALPINE_VERSION of openshift-advanced/labs/conf.version.sh
+  - docker.io/library/alpine:3.19
+  - docker.io/library/busybox:1.36
+  - docker.io/library/busybox:1.37.0
+  - docker.io/library/busybox:latest
+  - docker.io/library/nginx:1.25.3
+  - docker.io/luksa/kubia:latest
+  - docker.io/luksa/memoryhog:latest
+  - docker.io/nginxinc/nginx-unprivileged:alpine
+  - docker.io/nginxinc/nginx-unprivileged:alpine3.22-perl
+  - docker.io/vish/stress:latest
+
+guacamole_firefox_certificates:
+  - "{{ crc_ingress_ca_path }}"
+# Replaces the shared list (roles/guacamole/defaults): its OpenTelemetry folder
+# has nothing to do here.
+guacamole_firefox_bookmarks:
+  - Title: "K8s School"
+    URL: "https://k8s-school.fr"
+    Placement: "toolbar"
+
+  - Title: "Labs Kubernetes"
+    URL: "https://k8s-school.fr/labs/k8s"
+    Folder: "Kubernetes"
+    Placement: "toolbar"
+  - Title: "Documentation Kubernetes"
+    URL: "https://kubernetes.io/docs/home/"
+    Folder: "Kubernetes"
+    Placement: "toolbar"
+
+  - Title: "Labs OpenShift"
+    URL: "https://k8s-school.fr/labs/k8s/en/trainings/openshift-administration/index.html"
+    Folder: "OpenShift"
+    Placement: "toolbar"
+  - Title: "Console OpenShift"
+    URL: "https://console-openshift-console.apps-crc.testing"
+    Folder: "OpenShift"
+    Placement: "toolbar"
+  - Title: "Documentation OpenShift"
+    URL: "https://docs.redhat.com/en/documentation/openshift_container_platform/"
+    Folder: "OpenShift"
+    Placement: "toolbar"

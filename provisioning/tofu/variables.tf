@@ -1,5 +1,5 @@
 variable "flavor" {
-  description = "Training flavor (k8s | openshift | otel). Selects naming and defaults."
+  description = "Training flavor (k8s | cks | openshift | otel). Selects naming and defaults."
   type        = string
 }
 
@@ -14,7 +14,7 @@ variable "region" {
 }
 
 variable "instance_name" {
-  description = "Instance + IP tag name. Mirrors INSTANCE_NAME in infra/env.<flavor>.sh."
+  description = "Instance + IP tag name, also the inventory file name. `make up` overrides it with NAME (default: the flavor)."
   type        = string
 }
 

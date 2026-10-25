@@ -1,0 +1,24 @@
+---
+# Pull-through cache of Docker Hub for the kind clusters. Every account shares
+# the server's public IP, so twenty clusters pulling their lab images straight
+# from Docker Hub hit its anonymous rate limit within the first lab. Through the
+# cache, each image leaves Docker Hub once for the whole room.
+# Switch: registry_mirror_enabled, in a flavor's group_vars (off by default).
+
+registry_mirror_name: kind-registry
+registry_mirror_image: "registry:2.8.3"
+registry_mirror_upstream: "https://registry-1.docker.io"
+
+# Host directory of containerd hosts.toml files: ktbx (kind.registryConfigDir)
+# mounts it on every node as /etc/containerd/certs.d.
+registry_mirror_config_dir: /etc/ktbx/certs.d
+
+# Also published on the host loopback, only so the preload below can pull
+# through the cache (dockerd trusts plain HTTP on 127.0.0.0/8). Not 5000, which
+# the labs' own local registries tend to take.
+registry_mirror_host_port: 5050
+
+# Docker Hub images pulled through the cache at provisioning time, so the first
+# lab does not wait on Docker Hub. Images of other registries are ignored: only
+# Docker Hub is rate-limited, the others are not cached at all.
+registry_mirror_preload: []

@@ -1,79 +1,106 @@
 ---
 # XFCE desktop + xrdp, so each participant's RDP connection lands in their own
 # graphical session (browser included). Included from main.yml only in rdp mode.
-# Debian/Ubuntu only — the training image is Ubuntu.
+# Debian/Ubuntu (the k8s, cks and otel images) and Fedora (openshift): only the
+# package installation and a few distro-specific knobs differ, the desktop and
+# xrdp configuration below is shared.
 
-- name: Ensure the apt keyrings directory exists
-  ansible.builtin.file:
-    path: /etc/apt/keyrings
-    state: directory
-    mode: "0755"
+- name: Install the desktop (Debian/Ubuntu)
+  when: ansible_facts['os_family'] == "Debian"
+  block:
+    - name: Ensure the apt keyrings directory exists
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
 
-# Ubuntu ships firefox/chromium as snaps that don't run under xrdp; pull a real
-# .deb from Mozilla's APT repo instead.
-- name: Add the Mozilla APT signing key
-  ansible.builtin.get_url:
-    url: https://packages.mozilla.org/apt/repo-signing-key.gpg
-    dest: /etc/apt/keyrings/packages.mozilla.org.asc
-    mode: "0644"
+    # Ubuntu ships firefox/chromium as snaps that don't run under xrdp; pull a
+    # real .deb from Mozilla's APT repo instead.
+    - name: Add the Mozilla APT signing key
+      ansible.builtin.get_url:
+        url: https://packages.mozilla.org/apt/repo-signing-key.gpg
+        dest: /etc/apt/keyrings/packages.mozilla.org.asc
+        mode: "0644"
 
-# deb822_repository needs the python3-debian library on the target. Installed
-# here as well as in the other roles so this one stays self-contained.
-- name: Ensure python3-debian is present
-  ansible.builtin.apt:
-    name: python3-debian
-    state: present
-    update_cache: true
-    cache_valid_time: 3600
+    # deb822_repository needs the python3-debian library on the target. Installed
+    # here as well as in the other roles so this one stays self-contained.
+    - name: Ensure python3-debian is present
+      ansible.builtin.apt:
+        name: python3-debian
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
 
-- name: Add the Mozilla APT repository
-  ansible.builtin.deb822_repository:
-    name: mozilla
-    types: [deb]
-    uris: "https://packages.mozilla.org/apt"
-    suites: [mozilla]
-    components: [main]
-    architectures: [amd64]
-    signed_by: /etc/apt/keyrings/packages.mozilla.org.asc
-    state: present
+    - name: Add the Mozilla APT repository
+      ansible.builtin.deb822_repository:
+        name: mozilla
+        types: [deb]
+        uris: "https://packages.mozilla.org/apt"
+        suites: [mozilla]
+        components: [main]
+        architectures: [amd64]
+        signed_by: /etc/apt/keyrings/packages.mozilla.org.asc
+        state: present
 
-- name: Prefer the Mozilla firefox over the Ubuntu snap transitional package
-  ansible.builtin.copy:
-    dest: /etc/apt/preferences.d/mozilla
-    mode: "0644"
-    content: |
-      # Managed by Ansible (guacamole role).
-      Package: *
-      Pin: origin packages.mozilla.org
-      Pin-Priority: 1000
+    - name: Prefer the Mozilla firefox over the Ubuntu snap transitional package
+      ansible.builtin.copy:
+        dest: /etc/apt/preferences.d/mozilla
+        mode: "0644"
+        content: |
+          # Managed by Ansible (guacamole role).
+          Package: *
+          Pin: origin packages.mozilla.org
+          Pin-Priority: 1000
 
-      # Ubuntu's 'firefox' is a transitional stub pulling the snap, which does not
-      # run under xrdp. Its epoch (1:1snap1-...) sorts above Mozilla's 153.0~build1,
-      # so any apt upgrade happily "upgrades" the working .deb into a broken snap —
-      # exactly what unattended-upgrades did on 2026-07-22. Never install it.
-      Package: firefox firefox-esr
-      Pin: release o=Ubuntu
-      Pin-Priority: -1
+          # Ubuntu's 'firefox' is a transitional stub pulling the snap, which does
+          # not run under xrdp. Its epoch (1:1snap1-...) sorts above Mozilla's
+          # 153.0~build1, so any apt upgrade happily "upgrades" the working .deb
+          # into a broken snap — exactly what unattended-upgrades did on
+          # 2026-07-22. Never install it.
+          Package: firefox firefox-esr
+          Pin: release o=Ubuntu
+          Pin-Priority: -1
 
-- name: Install the XFCE desktop, xrdp, the emoji font and a browser
-  ansible.builtin.apt:
-    name: >-
-      {{ guacamole_desktop_packages + guacamole_desktop_fonts
-         + [guacamole_browser_package] }}
-    state: present
-    update_cache: true
+    - name: Install the XFCE desktop, xrdp, the emoji font and a browser
+      ansible.builtin.apt:
+        name: >-
+          {{ guacamole_desktop_packages + guacamole_desktop_fonts
+             + [guacamole_browser_package] }}
+        state: present
+        update_cache: true
 
-# The X session's own fallback keymap, for the reconnection case described in
-# defaults/main.yml. localectl refuses to write this on Debian/Ubuntu ("Setting
-# X11 and console keymaps is not supported"), so edit the file console-setup
-# actually reads. No handler: this only has to be right for sessions started
-# later, and re-running setupcon would not touch the ones already open.
-- name: Set the desktop's fallback keyboard layout
-  ansible.builtin.lineinfile:
-    path: /etc/default/keyboard
-    regexp: '^XKBLAYOUT='
-    line: 'XKBLAYOUT="{{ guacamole_desktop_xkb_layout }}"'
-    create: false
+    # The X session's own fallback keymap, for the reconnection case described
+    # in defaults/main.yml. localectl refuses to write this on Debian/Ubuntu
+    # ("Setting X11 and console keymaps is not supported"), so edit the file
+    # console-setup actually reads. No handler: this only has to be right for
+    # sessions started later, and re-running setupcon would not touch the ones
+    # already open.
+    - name: Set the desktop's fallback keyboard layout
+      ansible.builtin.lineinfile:
+        path: /etc/default/keyboard
+        regexp: '^XKBLAYOUT='
+        line: 'XKBLAYOUT="{{ guacamole_desktop_xkb_layout }}"'
+        create: false
+
+- name: Install the desktop (Fedora)
+  when: ansible_facts['os_family'] == "RedHat"
+  block:
+    - name: Install the XFCE components, xrdp, the fonts and a browser
+      ansible.builtin.dnf:
+        name: "{{ guacamole_desktop_packages_redhat + guacamole_desktop_fonts_redhat }}"
+        state: present
+
+    # Same fallback keymap as above. On Fedora localectl does write it, into
+    # /etc/X11/xorg.conf.d/00-keyboard.conf, which the xrdp Xorg reads.
+    - name: Read the X11 keyboard layout
+      ansible.builtin.command: localectl status
+      register: guac_localectl
+      changed_when: false
+
+    - name: Set the desktop's fallback keyboard layout
+      ansible.builtin.command: "localectl set-x11-keymap {{ guacamole_desktop_xkb_layout }}"
+      when: guac_localectl.stdout is not search('X11 Layout:\\s*' ~ guacamole_desktop_xkb_layout ~ '\\s*$', multiline=True)
+      changed_when: true
 
 # Window-tiling helper, in the system PATH so every participant account has it
 # without a per-user copy: run 'layout.sh' from the desktop terminal and the
@@ -108,6 +135,33 @@
       if test -r ~/.profile; then . ~/.profile; fi
       exec startxfce4
   notify: Restart xrdp
+
+# Ubuntu's sesman.ini already runs /etc/xrdp/startwm.sh. Fedora's runs its own
+# startwm-bash.sh from /usr/libexec/xrdp, which would never reach the file above:
+# point both at it by absolute path.
+- name: Make xrdp-sesman run that startwm.sh
+  ansible.builtin.lineinfile:
+    path: /etc/xrdp/sesman.ini
+    regexp: '^DefaultWindowManager='
+    line: "DefaultWindowManager=/etc/xrdp/startwm.sh"
+  notify: Restart xrdp
+
+# Under SELinux (Fedora), a session may only be entered through a file labelled
+# as an executable: from /etc/xrdp the script is etc_t, and sesexec's exec dies
+# with "Permission denied" (AVC 'entrypoint'), Xorg closes and the participant
+# sees the connection drop right after login. Label it bin_t, like Fedora's own
+# /usr/libexec/xrdp/startwm.sh, durably (a rule, not a one-off chcon).
+- name: Label startwm.sh as an executable for SELinux
+  community.general.sefcontext:
+    target: '/etc/xrdp/startwm\.sh'
+    setype: bin_t
+  when: ansible_facts['selinux']['status'] | default('disabled') == 'enabled'
+
+- name: Apply the SELinux label to startwm.sh
+  ansible.builtin.command: restorecon -v /etc/xrdp/startwm.sh
+  register: guac_restorecon
+  changed_when: guac_restorecon.stdout | length > 0
+  when: ansible_facts['selinux']['status'] | default('disabled') == 'enabled'
 
 # --- Firefox defaults for every account ---------------------------------------
 # Bookmarks are per-profile state in places.sqlite, which cannot be seeded
@@ -182,6 +236,8 @@
                  'StartPage': 'homepage',
                  'Locked': false
                }} if guacamole_welcome_page | bool else {})
+             | combine({'Certificates': {'Install': guacamole_firefox_certificates}}
+               if guacamole_firefox_certificates | length > 0 else {})
           } | to_nice_json }}
 
 # --- Latency tuning ----------------------------------------------------------
@@ -208,6 +264,36 @@
     - { key: use_fastpath, value: "both" }
   loop_control:
     label: "{{ item.key }}"
+  notify: Restart xrdp
+
+# The regexp only matches the [Globals] listener (port=3389, or a previous run's
+# tcp:// form): the other sections carry port=-1 / port=ask3389, which must stay.
+- name: Make xrdp listen on the Docker bridge only
+  ansible.builtin.lineinfile:
+    path: /etc/xrdp/xrdp.ini
+    regexp: '^port=(3389|tcp://.*:3389)$'
+    line: "port={{ 'tcp://' ~ guacamole_xrdp_listen_address ~ ':3389' if guacamole_xrdp_listen_address | length > 0 else '3389' }}"
+  notify: Restart xrdp
+
+# That address belongs to docker0, which only exists once Docker runs: at boot,
+# an xrdp started first would fail to bind it.
+- name: Ensure the xrdp unit drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/system/xrdp.service.d
+    state: directory
+    mode: "0755"
+  when: guacamole_xrdp_listen_address | length > 0
+
+- name: Start xrdp after Docker
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/xrdp.service.d/10-after-docker.conf
+    mode: "0644"
+    content: |
+      # Managed by Ansible (guacamole role): xrdp listens on docker0's address.
+      [Unit]
+      Wants=docker.service
+      After=docker.service
+  when: guacamole_xrdp_listen_address | length > 0
   notify: Restart xrdp
 
 # XFCE turns on the xfwm4 compositor by default. Every shadow/transparency it
@@ -246,11 +332,9 @@
 # fonts and cursor settings, so this edits the one property in place instead of
 # rewriting the file. community.general.xml needs lxml on the target.
 - name: Ensure python3-lxml is present (needed to edit the xfconf XML)
-  ansible.builtin.apt:
+  ansible.builtin.package:
     name: python3-lxml
     state: present
-    update_cache: true
-    cache_valid_time: 3600
   when: guacamole_tune_xfce | bool
 
 - name: Disable GTK animations in the desktop
@@ -313,13 +397,17 @@
     regexp: '^TerminalEmulator='
     line: "TerminalEmulator=xfce4-terminal"
     mode: "0644"
+    create: true
   when: guacamole_terminal_theme | bool
 
+# Debian only: Fedora has no x-terminal-emulator alternative (nor zutty).
 - name: Point the x-terminal-emulator alternative at xfce4-terminal
   community.general.alternatives:
     name: x-terminal-emulator
     path: /usr/bin/xfce4-terminal.wrapper
-  when: guacamole_terminal_theme | bool
+  when:
+    - guacamole_terminal_theme | bool
+    - ansible_facts['os_family'] == "Debian"
 
 # --- Terminal theme -----------------------------------------------------------
 # One system-wide terminalrc for students and trainer alike. xfce4-terminal
@@ -417,11 +505,14 @@
     - guacamole_reset_desktop_prefs | bool
 
 # xrdp reads its TLS key as the 'xrdp' user; ssl-cert membership grants access.
+# Debian only: the ssl-cert group and its snakeoil key are Debian's; Fedora's
+# xrdp generates its own key pair (/etc/xrdp/*.pem) on first start.
 - name: Ensure the xrdp user can read its TLS key
   ansible.builtin.user:
     name: xrdp
     groups: ssl-cert
     append: true
+  when: ansible_facts['os_family'] == "Debian"
   notify: Restart xrdp
 
 # Silence the recurring polkit "Authentication required to create a color

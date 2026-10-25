@@ -1,0 +1,34 @@
+# CKS training (k8s-advanced labs): one account + one kind cluster per
+# participant. The k8s flavor stays the single-cluster training; everything
+# multi-cluster lives here.
+#
+# Why one cluster each: the day-2 labs have every participant edit their own
+# control plane (audit-logs: `docker exec ${CLUSTER_NAME}-control-plane`,
+# kube-bench remediations: static pod manifests), install falco under a fixed
+# release name, or create clusters themselves (seccomp, finops). On a shared
+# cluster the first broken kube-apiserver manifest takes the whole room down.
+# The RBAC / policies / compute labs work in <ID>-suffixed namespaces and would
+# be fine on a shared cluster, but they run unchanged on a private one.
+#
+# The January 2026 session ran with 6 participants (TODO.CKS: "6 clusters").
+nb_users: 6
+repo: "k8s-advanced"
+repo_dest: "k8s-advanced"
+trainer_repo: "k8s-advanced"
+extra_groups: ["docker", "adm"]
+
+# CLUSTER_NAME=<account> + PF_ADDR/PF_HOST in every .bashrc, and `make
+# precreate` (part of `make provision`) creates each account's cluster ahead of
+# the session with `ktbx create -n <account>` (see util/precreate.sh).
+per_user_cluster: true
+
+# No instructor-only cluster: the trainer is an account like the others and
+# gets its own 'trainer' cluster from make precreate.
+training_action: "none"
+
+guacamole_enabled: true
+
+# Docker Hub cache for every account's kind cluster (roles/registry_mirror).
+# Nothing preloaded: util/precreate.sh already 'kind load's the images the labs
+# name explicitly; the cache catches everything else, from the first pull on.
+registry_mirror_enabled: true

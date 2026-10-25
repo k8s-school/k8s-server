@@ -39,7 +39,24 @@ NB_USERS ?=
 # ~5 GB each is I/O-bound; too many at once saturates the disk.
 WAVE ?= 4
 
-INVENTORY := $(ANSIBLE_DIR)/inventory/$(FLAVOR).ini
+# Name of everything created on Scaleway: server, reserved IP tag, image name
+# and tag, inventory file. FLAVOR picks what is installed (tfvars, group_vars,
+# distro); NAME only picks what it is called, so a flavor can run under a name
+# that does not give it away:
+#   make provision FLAVOR=openshift NAME=fink-dev
+NAME ?= $(FLAVOR)
+
+# One OpenTofu state per Scaleway account: the workspace is named after the scw
+# profile in use (SCW_PROFILE, else the config's active_profile). The profile
+# 'default' keeps the historical 'default' workspace; any other one gets its
+# own, which TF_WORKSPACE creates on first apply. Without this, switching
+# profile would point tofu at resources of another account.
+WORKSPACE := $(or $(shell scw config info -o json 2>/dev/null | jq -r '.ProfileName // empty'),default)
+TOFU = TF_WORKSPACE=$(WORKSPACE) tofu
+# Where the local backend keeps that workspace's state, read by `make status`.
+STATE_FILE := $(TOFU_DIR)/$(if $(filter default,$(WORKSPACE)),terraform.tfstate,terraform.tfstate.d/$(WORKSPACE)/terraform.tfstate)
+
+INVENTORY := $(ANSIBLE_DIR)/inventory/$(NAME).ini
 
 # Pull a quoted value out of the flavor's tfvars, e.g. $(call tfvar,dns_zone).
 # The DNS state is applied separately (see the `dns` target), so it gets its
@@ -47,27 +64,30 @@ INVENTORY := $(ANSIBLE_DIR)/inventory/$(FLAVOR).ini
 # same set as the VM state's.
 tfvar = $$(grep -E '^[[:space:]]*$(1)[[:space:]]*=' $(TOFU_DIR)/$(TFVARS) | sed -E 's/.*"([^"]+)".*/\1/')
 
-# Shell pipeline printing the Scaleway image IDs tagged for the current FLAVOR
+# Shell pipeline printing the Scaleway image IDs tagged for the current NAME
 # (one per line). This is how the image is found by tag instead of a pinned id.
-IMAGE_IDS = scw instance image list zone=$(ZONE) -o json | jq -r --arg t "flavor=$(FLAVOR)" '.[] | select((.tags // []) | index($$t)) | .id'
+# 'flavor=<name>' is the tag of images baked before NAME existed.
+IMAGE_TAG = name=$(NAME)
+IMAGE_IDS = scw instance image list zone=$(ZONE) -o json | jq -r --arg t "$(IMAGE_TAG)" --arg legacy "flavor=$(NAME)" '.[] | select((.tags // []) | index($$t) or index($$legacy)) | .id'
 
 .DEFAULT_GOAL := help
 .PHONY: help init check-tfvars create-image up dns down configure provision precreate ssh ip ip-reserve fqdn fmt validate delete-image delete-ip delete-dns status \
         cluster cluster-dispatch cluster-list cluster-ssh cluster-down
 
 help: ## Show this help (default target)
-	@echo "Training provisioning — usage: make <target> [FLAVOR=k8s|openshift|otel] [SIZE=small]"
-	@echo "Current FLAVOR=$(FLAVOR), tfvars=$(TFVARS)$(if $(NB_USERS), nb_users=$(NB_USERS) (override))"
+	@echo "Training provisioning — usage: make <target> [FLAVOR=k8s|cks|openshift|otel] [SIZE=small] [NAME=<name>]"
+	@echo "Current FLAVOR=$(FLAVOR), NAME=$(NAME), tfvars=$(TFVARS), tofu workspace=$(WORKSPACE) (scw profile)$(if $(NB_USERS), nb_users=$(NB_USERS) (override))"
 	@echo "SIZE picks the machine for the same flavor (otel: large|small); NB_USERS=<N> overrides the headcount."
+	@echo "NAME (default: FLAVOR) names the Scaleway objects; SCW_PROFILE picks the account and its own tofu state."
 	@echo "The cluster-* targets take nb=<N> instead, not FLAVOR — see README.md."
 	@echo
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 	  | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
 
 init: ## One-time: initialize the OpenTofu working directories (VM + DNS + clusters)
-	cd $(TOFU_DIR) && tofu init
+	cd $(TOFU_DIR) && $(TOFU) init
 	cd $(DNS_DIR) && tofu init
-	cd $(CLUSTERS_DIR) && tofu init
+	cd $(CLUSTERS_DIR) && $(TOFU) init
 
 check-tfvars: ## Fail early when FLAVOR/SIZE name no tfvars file
 	@test -f $(TOFU_DIR)/$(TFVARS) || { \
@@ -83,38 +103,38 @@ check-tfvars: ## Fail early when FLAVOR/SIZE name no tfvars file
 	  exit 1; }
 
 create-image: ## Build the golden Scaleway image with Packer (locally)
-	cd packer && packer init . && packer build -var flavor=$(FLAVOR) .
+	cd packer && packer init . && packer build -var flavor=$(FLAVOR) -var name=$(NAME) .
 	@# Packer prints "An image was created" twice (harmless manifest quirk). The
-	@# image is found by its 'flavor=$(FLAVOR)' tag, so nothing to copy anywhere.
+	@# image is found by its '$(IMAGE_TAG)' tag, so nothing to copy anywhere.
 	@ids=$$($(IMAGE_IDS)); n=$$(printf '%s\n' "$$ids" | grep -c .); \
 	echo ""; \
 	if [ "$$n" -gt 1 ]; then \
-	  echo "WARNING: $$n images now carry the tag 'flavor=$(FLAVOR)':"; \
+	  echo "WARNING: $$n images now carry the tag '$(IMAGE_TAG)':"; \
 	  printf '  %s\n' $$ids; \
-	  echo "'make up FLAVOR=$(FLAVOR)' will REFUSE to run until exactly one remains."; \
-	  echo "Prune the stale one(s): make delete-image FLAVOR=$(FLAVOR)  (deletes ALL of them)"; \
+	  echo "'make up FLAVOR=$(FLAVOR) NAME=$(NAME)' will REFUSE to run until exactly one remains."; \
+	  echo "Prune the stale one(s): make delete-image FLAVOR=$(FLAVOR) NAME=$(NAME)  (deletes ALL of them)"; \
 	  echo "                    or: scw instance image delete <id> with-snapshots=true"; \
 	else \
-	  echo "Image built and tagged 'flavor=$(FLAVOR)' (id: $$ids)."; \
-	  echo "Nothing to copy: 'make up FLAVOR=$(FLAVOR)' resolves it by tag automatically."; \
+	  echo "Image built and tagged '$(IMAGE_TAG)' (id: $$ids)."; \
+	  echo "Nothing to copy: 'make up FLAVOR=$(FLAVOR) NAME=$(NAME)' resolves it by tag automatically."; \
 	fi
 
 up: check-tfvars ## Create/update the VM + reserved IP, and write the Ansible inventory
 	@ids=$$($(IMAGE_IDS)); n=$$(printf '%s\n' "$$ids" | grep -c .); \
 	if [ "$$n" -gt 1 ]; then \
-	  echo "ERROR: $$n images are tagged 'flavor=$(FLAVOR)' — cannot pick one:"; \
+	  echo "ERROR: $$n images are tagged '$(IMAGE_TAG)' — cannot pick one:"; \
 	  printf '  %s\n' $$ids; \
 	  echo "Keep a single image for this flavor, then retry. Prune with:"; \
-	  echo "  make delete-image FLAVOR=$(FLAVOR)   (deletes ALL, then rebuild one)"; \
+	  echo "  make delete-image FLAVOR=$(FLAVOR) NAME=$(NAME)   (deletes ALL, then rebuild one)"; \
 	  echo "  scw instance image delete <id> with-snapshots=true   (targeted)"; \
 	  exit 1; \
 	elif [ "$$n" -eq 1 ]; then \
-	  echo "Using baked image $$ids (tag flavor=$(FLAVOR))."; \
-	  cd $(TOFU_DIR) && tofu apply -var-file=$(TFVARS) -var image_id="$$ids" -auto-approve; \
+	  echo "Using baked image $$ids (tag $(IMAGE_TAG))."; \
+	  cd $(TOFU_DIR) && $(TOFU) apply -var-file=$(TFVARS) -var instance_name=$(NAME) -var image_id="$$ids" -auto-approve; \
 	else \
-	  echo "ERROR: no image tagged 'flavor=$(FLAVOR)' — nothing to boot."; \
+	  echo "ERROR: no image tagged '$(IMAGE_TAG)' — nothing to boot."; \
 	  echo "There is no fallback distro. Build the golden image first:"; \
-	  echo "  make create-image FLAVOR=$(FLAVOR)"; \
+	  echo "  make create-image FLAVOR=$(FLAVOR) NAME=$(NAME)"; \
 	  exit 1; \
 	fi
 
@@ -129,21 +149,21 @@ dns: check-tfvars ## Point the flavor's DNS record at the reserved IP (no-op wit
 	  echo "(Guacamole is then served over plain HTTP — see provisioning/README.md.)"; \
 	  exit 0; \
 	fi; \
-	ip=$$(cd $(TOFU_DIR) && tofu output -raw public_ip) || \
-	  { echo "ERROR: no public_ip in the VM state — run 'make up FLAVOR=$(FLAVOR)' first."; exit 1; }; \
+	ip=$$(cd $(TOFU_DIR) && $(TOFU) output -raw public_ip) || \
+	  { echo "ERROR: no public_ip in the VM state — run 'make up FLAVOR=$(FLAVOR) NAME=$(NAME)' first."; exit 1; }; \
 	echo "Pointing $${sub:-training}.$$zone at $$ip"; \
 	cd $(DNS_DIR) && tofu init -input=false >/dev/null && \
 	tofu apply -var dns_zone="$$zone" -var dns_subdomain="$${sub:-training}" -var target_ip="$$ip" -auto-approve
 
 configure: ## Run Ansible: participant accounts, repo clones, training clusters
-	cd $(ANSIBLE_DIR) && ansible-playbook -i inventory/$(FLAVOR).ini site.yml -e flavor=$(FLAVOR)$(if $(NB_USERS), -e nb_users=$(NB_USERS))
+	cd $(ANSIBLE_DIR) && ansible-playbook -i inventory/$(NAME).ini site.yml -e flavor=$(FLAVOR)$(if $(NB_USERS), -e nb_users=$(NB_USERS))
 
 provision: up dns configure precreate ## Full session bring-up (up + dns + configure + precreate)
 
 precreate: ## Pre-create every account's cluster + preload images (no demo), in waves of WAVE=4
 	@# Nothing to pre-create unless the flavor gives each account its own kind
 	@# cluster. A no-op rather than an error, so 'provision' stays valid for every
-	@# flavor: k8s and openshift use the cluster-* targets instead (see README.md).
+	@# flavor: k8s and openshift have no per-account cluster (see README.md).
 	@grep -q '^per_user_cluster:[[:space:]]*true' $(ANSIBLE_DIR)/group_vars/$(FLAVOR).yml || { \
 	  echo "precreate: FLAVOR=$(FLAVOR) has no per-account kind cluster — nothing to do."; \
 	  exit 0; }; \
@@ -151,10 +171,10 @@ precreate: ## Pre-create every account's cluster + preload images (no demo), in 
 	[ -n "$$nb" ] || nb=$$(sed -n 's/^nb_users:[[:space:]]*\([0-9]\{1,\}\).*/\1/p' $(ANSIBLE_DIR)/group_vars/$(FLAVOR).yml); \
 	repo=$$(sed -n 's/^repo_dest:[[:space:]]*"\([^"]*\)".*/\1/p' $(ANSIBLE_DIR)/group_vars/$(FLAVOR).yml); \
 	[ -n "$$nb" ] && [ -n "$$repo" ] || { echo "ERROR: could not read nb_users/repo_dest from group_vars/$(FLAVOR).yml"; exit 1; }; \
-	ip=$$(cd $(TOFU_DIR) && tofu output -raw public_ip) || { echo "ERROR: no server (run 'make up FLAVOR=$(FLAVOR)' first)."; exit 1; }; \
+	ip=$$(cd $(TOFU_DIR) && $(TOFU) output -raw public_ip) || { echo "ERROR: no server (run 'make up FLAVOR=$(FLAVOR) NAME=$(NAME)' first)."; exit 1; }; \
 	users="trainer"; for i in $$(seq 1 $$nb); do users="$$users student$$i"; done; \
 	echo "precreate: $$nb participants + trainer on $$ip, waves of $(WAVE), clone ~/$$repo"; \
-	ssh $(SSH_USER)@$$ip "USERS='$$users' REPO='$$repo' WAVE='$(WAVE)' bash -s" < util/precreate.sh
+	ssh $(SSH_USER)@$$ip "FLAVOR='$(FLAVOR)' USERS='$$users' REPO='$$repo' WAVE='$(WAVE)' bash -s" < util/precreate.sh
 
 # ---------------------------------------------------------------------------
 # Lab clusters (labs/0_kubeadm) — two VMs per participant, own OpenTofu state.
@@ -178,29 +198,29 @@ endef
 
 cluster: ## Boot nb=<N> two-node kubeadm clusters, one per participant
 	@$(require_nb); \
-	cd $(CLUSTERS_DIR) && tofu apply -var cluster_count=$(nb) -auto-approve
+	cd $(CLUSTERS_DIR) && $(TOFU) apply -var cluster_count=$(nb) -auto-approve
 	@echo ""
-	@cd $(CLUSTERS_DIR) && tofu output -raw summary
+	@cd $(CLUSTERS_DIR) && $(TOFU) output -raw summary
 	@echo ""
 	@echo "Next: make cluster-dispatch   (hands the access to the student<N> accounts)"
 
 cluster-dispatch: ## Give each participant the ssh access to their own cluster
 	@# Reads tofu/clusters/../../ansible/data/clusters.yml, written by `make cluster`.
 	@# Runs against the training server, so it uses that flavor's inventory.
-	cd $(ANSIBLE_DIR) && ansible-playbook -i inventory/$(FLAVOR).ini lab-clusters.yml -e flavor=$(FLAVOR)
+	cd $(ANSIBLE_DIR) && ansible-playbook -i inventory/$(NAME).ini lab-clusters.yml -e flavor=$(FLAVOR)
 
 cluster-list: ## Print the participant-to-address table
-	@cd $(CLUSTERS_DIR) && tofu output -raw summary
+	@cd $(CLUSTERS_DIR) && $(TOFU) output -raw summary
 	@echo ""
 
 cluster-ssh: ## SSH to a lab node as the trainer: make cluster-ssh node=student3-1
 	@if [ -z "$(node)" ]; then \
 	  echo "ERROR: node=<name> is required, e.g. 'make cluster-ssh node=student3-1'."; exit 1; \
 	fi; \
-	ip=$$(cd $(CLUSTERS_DIR) && tofu output -json node_ips | jq -r --arg n "$(node)" '.[$$n] // empty'); \
+	ip=$$(cd $(CLUSTERS_DIR) && $(TOFU) output -json node_ips | jq -r --arg n "$(node)" '.[$$n] // empty'); \
 	if [ -z "$$ip" ]; then \
 	  echo "ERROR: no node named '$(node)' in the state. Known nodes:"; \
-	  (cd $(CLUSTERS_DIR) && tofu output -json node_ips | jq -r 'keys[]' | sed 's/^/  /'); \
+	  (cd $(CLUSTERS_DIR) && $(TOFU) output -json node_ips | jq -r 'keys[]' | sed 's/^/  /'); \
 	  exit 1; \
 	fi; \
 	ssh ubuntu@"$$ip"
@@ -211,7 +231,7 @@ cluster-down: ## Destroy every lab cluster (VMs AND their IPs)
 	@# satisfy it, the same way `down` passes image_id=unused-on-destroy.
 	@# Unlike the training server's reserved IP, nothing here carries
 	@# prevent_destroy: a lab IP that outlives its VM is billed for nothing.
-	cd $(CLUSTERS_DIR) && tofu destroy -var cluster_count=1 -auto-approve
+	cd $(CLUSTERS_DIR) && $(TOFU) destroy -var cluster_count=1 -auto-approve
 	@echo ""
 	@echo "Check nothing is left behind:"
 	@echo "  scw instance server list tags.0=kubeadm-lab"
@@ -242,19 +262,18 @@ down: check-tfvars ## Destroy the VM only (keeps the reserved IP for the next se
 	@# null_resource.wait_for_ssh is torn down with it as a dependent.
 	@# image_id is a required var but irrelevant to a targeted destroy — pass a
 	@# placeholder just to satisfy it.
-	cd $(TOFU_DIR) && tofu destroy -target=scaleway_instance_server.main -var-file=$(TFVARS) -var image_id=unused-on-destroy -auto-approve
+	cd $(TOFU_DIR) && $(TOFU) destroy -target=scaleway_instance_server.main -var-file=$(TFVARS) -var image_id=unused-on-destroy -auto-approve
 
-delete-image: ## Delete every Scaleway image (+ snapshot) tagged flavor=<FLAVOR>
+delete-image: ## Delete every Scaleway image (+ snapshot) tagged name=<NAME>
 	@ids=$$($(IMAGE_IDS)); \
-	if [ -z "$$ids" ]; then echo "No image tagged 'flavor=$(FLAVOR)', nothing to delete"; exit 0; fi; \
+	if [ -z "$$ids" ]; then echo "No image tagged '$(IMAGE_TAG)', nothing to delete"; exit 0; fi; \
 	for img in $$ids; do \
 	  echo "Deleting Scaleway image $$img (with snapshot)"; \
 	  scw instance image delete "$$img" with-snapshots=true; \
 	done
 
-delete-ip: check-tfvars ## Release the reserved (floating) IP for this flavor
-	@name=$$(grep -E '^[[:space:]]*instance_name' $(TOFU_DIR)/$(TFVARS) | sed -E 's/.*"([^"]+)".*/\1/'); \
-	if [ -z "$$name" ]; then echo "No instance_name in $(TFVARS)"; exit 1; fi; \
+delete-ip: ## Release the reserved (floating) IP tagged <NAME>
+	@name='$(NAME)'; \
 	ip_id=$$(scw instance ip list tags.0="$$name" | grep -w "$$name" | awk '{print $$1}'); \
 	if [ -z "$$ip_id" ]; then echo "No reserved IP tagged $$name, nothing to delete"; exit 0; fi; \
 	echo "Deleting reserved IP $$ip_id (tag $$name)"; \
@@ -280,7 +299,7 @@ status: ## Show what exists right now on the account (i.e. what is billed) + DNS
 	@scw instance ip list zone=$(ZONE) -o json | jq -r \
 	  'if length == 0 then "  (none)" else .[] | "  \(.address)  \(if .server then "attached to \(.server.name)" else "DETACHED" end)  tags=[\(.tags | join(","))]" end'
 	@echo
-	@echo "== Images (flavor-tagged ones are what 'make up' boots) =="
+	@echo "== Images (name-tagged ones are what 'make up' boots) =="
 	@scw instance image list zone=$(ZONE) -o json | jq -r \
 	  'if length == 0 then "  (none)" else .[] | "  \(.name)  tags=[\(.tags | join(","))]  \(.creation_date[0:10])  id=\(.id)" end'
 	@echo
@@ -299,12 +318,12 @@ status: ## Show what exists right now on the account (i.e. what is billed) + DNS
 	@imgs=$$(scw instance image list zone=$(ZONE) -o json | jq -c '[.[] | {id: .root_volume.id, name: .name}]'); \
 	scw block snapshot list zone=$(ZONE) -o json | jq -r --argjson imgs "$$imgs" 'if length == 0 then "  (none)" else (.[] | . as $$s | ($$imgs | map(select(.id == $$s.id)) | first) as $$img | "  \(.name)  \(.size / 1000000000 | floor) GB  \(if $$img then "backs image \($$img.name)" else "ORPHAN  id=\(.id)" end)"), ([.[] | select(.id as $$i | ($$imgs | map(.id) | index($$i)) | not)] | "  -> \(map(.size) | add // 0 | . / 1000000000 | floor) GB in \(length) orphan snapshot(s)") end'
 	@echo
-	@echo "== OpenTofu state =="
-	@# One state, one workspace: it holds whichever flavor `make up` last applied,
-	@# not necessarily FLAVOR=$(FLAVOR) — the server name below says which.
-	@if [ ! -f $(TOFU_DIR)/terraform.tfstate ]; then echo "  vm: no state yet (never ran 'make up')"; else \
-	  name=$$(jq -r '.resources[] | select(.type == "scaleway_instance_server") | .instances[0].attributes.name' $(TOFU_DIR)/terraform.tfstate); \
-	  ip=$$(cd $(TOFU_DIR) && tofu output -raw public_ip 2>/dev/null); \
+	@echo "== OpenTofu state (workspace $(WORKSPACE), i.e. scw profile $(WORKSPACE)) =="
+	@# One state per scw profile: it holds whichever NAME `make up` last applied
+	@# on that account, not necessarily NAME=$(NAME) — the server name below says which.
+	@if [ ! -f $(STATE_FILE) ]; then echo "  vm: no state yet (never ran 'make up' with this profile)"; else \
+	  name=$$(jq -r '.resources[] | select(.type == "scaleway_instance_server") | .instances[0].attributes.name' $(STATE_FILE)); \
+	  ip=$$(cd $(TOFU_DIR) && $(TOFU) output -raw public_ip 2>/dev/null); \
 	  if [ -n "$$name" ]; then echo "  vm: $$name present at $$ip"; \
 	  else echo "  vm: destroyed, reserved ip kept ($$ip)"; fi; fi
 	@zone="$(call tfvar,dns_zone)"; \
@@ -313,13 +332,13 @@ status: ## Show what exists right now on the account (i.e. what is billed) + DNS
 	else echo "  dns: $$(cd $(DNS_DIR) && tofu output -raw fqdn 2>/dev/null) -> $$(cd $(DNS_DIR) && tofu output -raw target_ip 2>/dev/null)"; fi
 
 ip: ## Print the instance public IP
-	cd $(TOFU_DIR) && tofu output -raw public_ip
+	cd $(TOFU_DIR) && $(TOFU) output -raw public_ip
 
 fqdn: ## Print the public name of the instance (empty when no dns_zone)
-	@cd $(TOFU_DIR) && tofu output -raw fqdn
+	@cd $(TOFU_DIR) && $(TOFU) output -raw fqdn
 
 ssh: ## SSH to the VM as root (admin access via the operator key). Override user: make ssh SSH_USER=student1
-	ssh $(SSH_USER)@$$(cd $(TOFU_DIR) && tofu output -raw public_ip)
+	ssh $(SSH_USER)@$$(cd $(TOFU_DIR) && $(TOFU) output -raw public_ip)
 
 fmt: ## Format the OpenTofu and Packer files
 	cd $(TOFU_DIR) && tofu fmt -recursive
