@@ -94,6 +94,10 @@ guacamole_firefox_bookmarks:
     Folder: "Kubernetes"
     Placement: "toolbar"
 
+  - Title: "Labs OpenShift"
+    URL: "https://k8s-school.fr/labs/k8s/en/trainings/openshift-administration/index.html"
+    Folder: "OpenShift"
+    Placement: "toolbar"
   - Title: "Console OpenShift"
     URL: "https://console-openshift-console.apps-crc.testing"
     Folder: "OpenShift"
