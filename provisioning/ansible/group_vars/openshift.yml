@@ -38,8 +38,8 @@ crc_config:
   disk-size: 50
   pull-secret-file: "/home/{{ trainer_user }}/pull-secret.txt"
 
-# Deploy the optional Guacamole gateway on this flavor. No dns_zone in
-# tofu/envs/openshift.tfvars, so it is served over plain HTTP on port 80.
+# Deploy the optional Guacamole gateway on this flavor. HTTPS follows the
+# dns_zone set in tofu/envs/openshift.tfvars.
 # crc is not exposed outside the server: the console and the API are used from
 # it (*.apps-crc.testing and api.crc.testing only resolve there), through the
 # Firefox of each participant's XFCE desktop (rdp mode, the default).
