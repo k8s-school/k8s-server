@@ -93,7 +93,7 @@
 
 - name: Install stern
   ansible.builtin.unarchive:
-    # Tag carries the leading 'v', the asset filename does not.
+    # The tag carries the leading 'v', the asset filename does not.
     src: "https://github.com/stern/stern/releases/download/{{ stern_version }}/stern_{{ stern_version | replace('v', '') }}_linux_amd64.tar.gz"
     dest: /usr/local/bin
     remote_src: true
@@ -107,6 +107,21 @@
     remote_src: true
     include: [k9s]
     creates: /usr/local/bin/k9s
+
+- name: Install trivy
+  ansible.builtin.unarchive:
+    # The tag carries the leading 'v', the asset filename does not.
+    src: "https://github.com/aquasecurity/trivy/releases/download/{{ trivy_version }}/trivy_{{ trivy_version | regex_replace('^v', '') }}_Linux-64bit.tar.gz"
+    dest: /usr/local/bin
+    remote_src: true
+    include: [trivy]
+    creates: /usr/local/bin/trivy
+
+- name: Install cosign
+  ansible.builtin.get_url:
+    url: "https://github.com/sigstore/cosign/releases/download/{{ cosign_version }}/cosign-linux-amd64"
+    dest: /usr/local/bin/cosign
+    mode: "0755"
 
 # The ~800 generated kubectl aliases (k, kg, kgpo, kdel...) the toolbox sourced
 # from its .bashrc. Dropped in bash_completion.d for the same reason as the
