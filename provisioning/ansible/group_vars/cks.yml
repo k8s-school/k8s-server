@@ -7,8 +7,8 @@
 # kube-bench remediations: static pod manifests), install falco under a fixed
 # release name, or create clusters themselves (seccomp, finops). On a shared
 # cluster the first broken kube-apiserver manifest takes the whole room down.
-# The RBAC / policies / compute labs work in <ID>-suffixed namespaces and would
-# be fine on a shared cluster, but they run unchanged on a private one.
+# The RBAC labs run on a common cluster, like in the other trainings: see
+# trainer_kind_cluster below.
 #
 # The January 2026 session ran with 6 participants (TODO.CKS: "6 clusters").
 nb_users: 6
@@ -25,6 +25,12 @@ per_user_cluster: true
 # No instructor-only cluster: the trainer is an account like the others and
 # gets its own 'trainer' cluster from make precreate.
 training_action: "none"
+
+# The common 'kind' cluster of the RBAC labs, owned by the trainer (ktbx
+# defaults: 1 control plane + 3 workers, see roles/training/tasks/main.yml).
+# The participants reach it with 'kind export kubeconfig' (docker group), as
+# the 0_Prereqs/ssh page of k8s-school-labs says.
+trainer_kind_cluster: true
 
 guacamole_enabled: true
 
