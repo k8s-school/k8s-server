@@ -175,6 +175,13 @@ precreate: ## Pre-create every account's cluster + preload images (no demo), in 
 	users="trainer"; for i in $$(seq 1 $$nb); do users="$$users student$$i"; done; \
 	echo "precreate: $$nb participants + trainer on $$ip, waves of $(WAVE), clone ~/$$repo"; \
 	ssh $(SSH_USER)@$$ip "FLAVOR='$(FLAVOR)' USERS='$$users' REPO='$$repo' WAVE='$(WAVE)' bash -s" < util/precreate.sh
+	@# The CI of k8s-school-labs runs each lab page alone, on a 1-node kind: replay
+	@# them in the conditions of the session (4-node clusters, shared docker and kernel).
+	@if [ "$(FLAVOR)" = cks ]; then \
+	  echo; \
+	  echo "REMINDER: before the session, replay the CKS lab pages in 2 accounts at the same time:"; \
+	  echo "  git clone https://github.com/k8s-school/k8s-school-labs && cd k8s-school-labs && ./ci/run-lab.sh -c -k"; \
+	fi
 
 # ---------------------------------------------------------------------------
 # Lab clusters (labs/0_kubeadm) — two VMs per participant, own OpenTofu state.
