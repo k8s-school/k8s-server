@@ -15,6 +15,9 @@
 
 set -euo pipefail
 
+# The logs hold the join command of each cluster (kubeadm token): owner only
+umask 077
+
 NODE_IPS=$1
 LOG_DIR=${LOG_DIR:-tofu/clusters/install-logs}
 
@@ -29,7 +32,8 @@ page=$LABS_DIR/content/1_Labs/kubeadm.en.md
 
 # Without the ci-host markers (a page older than 2026-11-01), mdlab would run
 # the commands of the page here, on the trainer's workstation, not on the nodes.
-if ! grep -q '^<!-- ci-host: ' "$page"; then
+# The exact marker syntax mdlab accepts: a misspelt marker runs its block locally.
+if ! grep -Eq '^<!-- ci-host: (all|master|worker) -->$' "$page"; then
   echo "ERROR: $page has no ci-host marker: its commands would run on this machine. Use a recent k8s-school-labs."
   exit 1
 fi
