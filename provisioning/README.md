@@ -41,7 +41,7 @@ export SCW_ACCESS_KEY=$(scw config get access-key) SCW_SECRET_KEY=$(scw config g
        SCW_DEFAULT_PROJECT_ID=$(scw config get default-project-id)
 ```
 
-`make up` drops the old SSH host key of the server IP from `~/.ssh/known_hosts`:
+When it creates a new server, `make up` drops the old SSH host key of the server IP from `~/.ssh/known_hosts`:
 a reserved IP keeps its address from one VM to the next, and the stale key would
 make `make precreate` fail with "REMOTE HOST IDENTIFICATION HAS CHANGED".
 

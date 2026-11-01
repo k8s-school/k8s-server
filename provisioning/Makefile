@@ -130,9 +130,15 @@ up: check-tfvars ## Create/update the VM + reserved IP, and write the Ansible in
 	  exit 1; \
 	elif [ "$$n" -eq 1 ]; then \
 	  echo "Using baked image $$ids (tag $(IMAGE_TAG))."; \
-	  cd $(TOFU_DIR) && $(TOFU) apply -var-file=$(TFVARS) -var instance_name=$(NAME) -var image_id="$$ids" -auto-approve && \
-	  ip=$$($(TOFU) output -raw public_ip) && \
-	  { ssh-keygen -R "$$ip" >/dev/null 2>&1 || true; }; \
+	  cd $(TOFU_DIR) && \
+	  before=$$($(TOFU) output -raw instance_id 2>/dev/null || true) && \
+	  $(TOFU) apply -var-file=$(TFVARS) -var instance_name=$(NAME) -var image_id="$$ids" -auto-approve && \
+	  after=$$($(TOFU) output -raw instance_id) && \
+	  if [ "$$before" != "$$after" ]; then \
+	    ip=$$($(TOFU) output -raw public_ip) && \
+	    echo "New server $$after: dropping the old SSH host key of $$ip from known_hosts." && \
+	    { ssh-keygen -R "$$ip" >/dev/null 2>&1 || true; }; \
+	  fi; \
 	else \
 	  echo "ERROR: no image tagged '$(IMAGE_TAG)' — nothing to boot."; \
 	  echo "There is no fallback distro. Build the golden image first:"; \
