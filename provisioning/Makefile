@@ -220,11 +220,17 @@ cluster: ## Boot nb=<N> two-node kubeadm clusters, one per participant
 	@cd $(CLUSTERS_DIR) && $(TOFU) output -raw summary
 	@echo ""
 	@echo "Next: make cluster-dispatch   (hands the access to the student<N> accounts)"
+	@echo "      make cluster-install    (only for the upgrade lab: installs Kubernetes as the kubeadm lab does)"
 
 cluster-dispatch: ## Give each participant the ssh access to their own cluster
 	@# Reads tofu/clusters/../../ansible/data/clusters.yml, written by `make cluster`.
 	@# Runs against the training server, so it uses that flavor's inventory.
 	cd $(ANSIBLE_DIR) && ansible-playbook -i inventory/$(NAME).ini lab-clusters.yml -e flavor=$(FLAVOR)
+
+cluster-install: ## Install Kubernetes on every lab cluster, by running the kubeadm lab page (LABS_DIR=<checkout> to test local changes)
+	@ips=$$(cd $(CLUSTERS_DIR) && $(TOFU) output -json node_ips 2>/dev/null) && [ "$$ips" != "{}" ] || { \
+	  echo "ERROR: no lab cluster, run 'make cluster nb=<N>' first."; exit 1; }; \
+	LABS_DIR='$(LABS_DIR)' util/cluster-install.sh "$$ips"
 
 cluster-list: ## Print the participant-to-address table
 	@cd $(CLUSTERS_DIR) && $(TOFU) output -raw summary

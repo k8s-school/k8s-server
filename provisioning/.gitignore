@@ -20,6 +20,7 @@ ansible/inventory/*.ini
 # key per participant; clusters.txt is the trainer's address table.
 ansible/data/clusters.yml
 tofu/clusters/clusters.txt
+tofu/clusters/install-logs/
 
 # Vault password files
 *.vault-pass
