@@ -30,6 +30,21 @@ Scaleway credentials come from the environment, like the `scw` CLI:
 export SCW_ACCESS_KEY=... SCW_SECRET_KEY=... SCW_DEFAULT_PROJECT_ID=...
 ```
 
+To take them from a `scw` profile, select the profile **before** reading the
+keys, in a separate statement. In `export SCW_PROFILE=csan SCW_ACCESS_KEY=$(scw config get access-key)`,
+the shell expands `$(...)` before `SCW_PROFILE` is set: the keys come from the
+active profile, and Packer and OpenTofu work in that other account.
+
+```bash
+export SCW_PROFILE=csan
+export SCW_ACCESS_KEY=$(scw config get access-key) SCW_SECRET_KEY=$(scw config get secret-key) \
+       SCW_DEFAULT_PROJECT_ID=$(scw config get default-project-id)
+```
+
+`make up` drops the old SSH host key of the server IP from `~/.ssh/known_hosts`:
+a reserved IP keeps its address from one VM to the next, and the stale key would
+make `make precreate` fail with "REMOTE HOST IDENTIFICATION HAS CHANGED".
+
 `make dns` (see below) additionally needs OVH API credentials, created once at
 <https://api.ovh.com/createToken/> with `GET`/`POST`/`PUT`/`DELETE` on
 `/domain/zone/*`:

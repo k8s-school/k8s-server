@@ -3,9 +3,11 @@
 # Replaces bootstrap/install-go.sh, install-godeps.sh and the ktbx installs.
 # All tasks are idempotent (creates=/check before download) so re-running is cheap.
 
+# binutils provides `strings`, which the etcd-encryption lab of the CKS
+# training uses to read a Secret stored in etcd.
 - name: Install base OS packages
   ansible.builtin.package:
-    name: [git, curl, bash-completion, jq, tree]
+    name: [git, curl, bash-completion, jq, tree, binutils]
     state: present
 
 - name: Install Go
