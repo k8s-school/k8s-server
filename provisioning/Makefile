@@ -130,7 +130,15 @@ up: check-tfvars ## Create/update the VM + reserved IP, and write the Ansible in
 	  exit 1; \
 	elif [ "$$n" -eq 1 ]; then \
 	  echo "Using baked image $$ids (tag $(IMAGE_TAG))."; \
-	  cd $(TOFU_DIR) && $(TOFU) apply -var-file=$(TFVARS) -var instance_name=$(NAME) -var image_id="$$ids" -auto-approve; \
+	  cd $(TOFU_DIR) && \
+	  before=$$($(TOFU) output -raw instance_id 2>/dev/null || true) && \
+	  $(TOFU) apply -var-file=$(TFVARS) -var instance_name=$(NAME) -var image_id="$$ids" -auto-approve && \
+	  after=$$($(TOFU) output -raw instance_id) && \
+	  if [ "$$before" != "$$after" ]; then \
+	    ip=$$($(TOFU) output -raw public_ip) && \
+	    echo "New server $$after: dropping the old SSH host key of $$ip from known_hosts." && \
+	    { ssh-keygen -R "$$ip" >/dev/null 2>&1 || true; }; \
+	  fi; \
 	else \
 	  echo "ERROR: no image tagged '$(IMAGE_TAG)' — nothing to boot."; \
 	  echo "There is no fallback distro. Build the golden image first:"; \
@@ -179,7 +187,9 @@ precreate: ## Pre-create every account's cluster + preload images (no demo), in 
 	@# them in the conditions of the session (4-node clusters, shared docker and kernel).
 	@if [ "$(FLAVOR)" = cks ]; then \
 	  echo; \
-	  echo "REMINDER: before the session, replay the CKS lab pages in 2 accounts at the same time:"; \
+	  echo "REMINDER: before the session, replay the CKS lab pages in 2 accounts at the same time."; \
+	  echo "In each account, first export the kubeconfig of the common 'kind' cluster, as the participants do:"; \
+	  echo "  kind export kubeconfig --name kind"; \
 	  echo "  git clone https://github.com/k8s-school/k8s-school-labs && cd k8s-school-labs && ./ci/run-lab.sh -c -k"; \
 	fi
 
