@@ -31,6 +31,9 @@ training_action: "none"
 # The participants reach it with 'kind export kubeconfig' (docker group), as
 # the 0_Prereqs/ssh page of k8s-school-labs says.
 trainer_kind_cluster: true
+# Cilium enforces the NetworkPolicies of the networkpolicy lab, which runs on
+# this common cluster (ktbx create -c cilium).
+trainer_kind_cni: cilium
 
 guacamole_enabled: true
 
